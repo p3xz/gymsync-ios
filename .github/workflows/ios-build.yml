@@ -1,0 +1,53 @@
+# Builds the GymSync iOS app with EAS on every push to main.
+#
+# What it does:
+#   1. Checks out the repo on a macOS runner (iOS builds need macOS).
+#   2. Installs Node and project dependencies.
+#   3. Runs `eas build --platform ios --profile preview --non-interactive`.
+#
+# Required repository secrets (Settings > Secrets and variables > Actions):
+#   EXPO_TOKEN        - an Expo access token (expo.dev > Account Settings > Access Tokens).
+#                       Authenticates the EAS CLI without an interactive login.
+#
+# For builds that install on a REAL iPhone (not just the simulator),
+# EAS also needs Apple credentials. Easiest path: run once locally
+#   `eas credentials`
+# and let EAS manage them, or provide these secrets and reference them
+# in the build step via env:
+#   APPLE_ID            - your Apple ID email
+#   APPLE_ID_PASSWORD   - an app-specific password for that Apple ID
+#   APPLE_TEAM_ID       - your Apple Developer Team ID
+# Without a paid Apple Developer Program membership ($99/yr), iOS builds
+# can only target the simulator. The `preview` profile below builds for
+# the simulator, so it works with no Apple account at all.
+
+name: iOS build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install EAS CLI
+        run: npm install -g eas-cli
+
+      - name: Build iOS app with EAS
+        run: eas build --platform ios --profile preview --non-interactive --no-wait
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
