@@ -12,6 +12,7 @@
       "bundleIdentifier": "com.p3xz.gymsync"
     },
     "android": {
+      "package": "com.p3xz.gymsync",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

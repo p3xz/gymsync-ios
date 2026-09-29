@@ -1,6 +1,6 @@
-# GymSync for iOS
+# GymSync for Android
 
-A native iOS port of [GymSync](https://github.com/p3xz/gymsyncs), the vanilla
+A native Android port of [GymSync](https://github.com/p3xz/gymsyncs), the vanilla
 HTML/CSS/JS fitness tracker. Built with Expo (managed workflow), React Native,
 TypeScript, and expo-router. Dark theme, on-device storage, no backend.
 
@@ -22,24 +22,43 @@ TypeScript, and expo-router. Dark theme, on-device storage, no backend.
 All data is stored on-device with AsyncStorage under the `gymsync:` key prefix,
 mirroring the web app's localStorage keys.
 
-## Run locally
+## Get the APK
 
-Prerequisites: Node.js 20+, the Expo Go app on your iPhone (same Wi-Fi as your
-computer).
+Every push to `main` builds a signed APK automatically via GitHub Actions
+(see "Android builds via GitHub Actions" below). To install it:
+
+1. Open the repo on GitHub and go to the **Actions** tab.
+2. Click the latest successful **Android APK build** run.
+3. Under **Artifacts**, download `gymsync-apk` and unzip it to get `gymsync.apk`.
+4. Send the APK to your phone (USB, Google Drive, WhatsApp to yourself, etc.).
+5. Open the file on the phone. Android will ask you to allow **Install unknown
+   apps** for whichever app opens it (your file manager or browser) - allow it
+   once, then install.
+
+No developer account or payment is needed for any of this. Android lets you
+sideload APKs freely, unlike iOS.
+
+## Instant testing with Expo Go
+
+For quick iteration without waiting for a build:
+
+Prerequisites: Node.js 20+, the Expo Go app on your Android phone (same Wi-Fi
+as your computer).
 
 ```bash
 npm install
 npx expo start
 ```
 
-Scan the QR code in the terminal with your iPhone camera and open it in Expo Go.
-The app loads over your local network.
+Scan the QR code in the terminal with the Expo Go app. The app loads over your
+local network.
 
-## iOS builds via GitHub Actions
+## Android builds via GitHub Actions
 
-`.github/workflows/ios-build.yml` builds the iOS app with EAS on a macOS
-runner on every push to `main`. It uses the `preview` profile in `eas.json`,
-which targets the **iOS simulator**, so it needs no Apple account at all.
+`.github/workflows/android-build.yml` builds the Android APK with EAS on an
+`ubuntu-latest` runner on every push to `main`. It uses the `preview` profile
+in `eas.json`, which sets `buildType: "apk"`. The finished APK is uploaded as
+the `gymsync-apk` workflow artifact.
 
 ### Secrets you must add
 
@@ -49,22 +68,18 @@ In the GitHub repo: Settings > Secrets and variables > Actions > New repository 
 |---|---|
 | `EXPO_TOKEN` | expo.dev > your account > Access Tokens > Create token |
 
-That is the only secret the simulator build needs.
+That is the only secret the APK build needs. No Apple or Google Play
+credentials are involved.
 
-### Installing on a real iPhone
+## iOS (stub)
 
+`eas.json` still carries iOS build profiles (`preview` targets the simulator,
+`production` is a release build), but no workflow builds them automatically.
 Apple requires a paid **Apple Developer Program** membership ($99/year) to
-install apps on a physical iPhone or distribute via TestFlight. Without it,
-simulator builds are the limit. Once you have the membership:
-
-1. Run `eas credentials` locally and let EAS set up your distribution
-   certificate and provisioning profile, or add `APPLE_ID`,
-   `APPLE_ID_PASSWORD` (app-specific password), and `APPLE_TEAM_ID` as
-   repository secrets.
-2. Fill in the real values in the `submit.production.ios` section of
-   `eas.json` (`appleId`, `appleTeamId`, `ascAppId`).
-3. Change the workflow's build profile from `preview` to `production` and run
-   `eas submit --platform ios` to push to TestFlight.
+install on a physical iPhone or distribute via TestFlight. If you ever want
+that: add your Apple credentials with `eas credentials`, fill in the real
+values in the `submit.production.ios` section of `eas.json`, and add a macOS
+workflow job.
 
 ## Project layout
 
@@ -85,12 +100,14 @@ lib/
   workout.ts         Splits, exercises, quotes, schedule logic, streak math
 eas.json             EAS build profiles (development / preview / production)
 .github/workflows/
-  ios-build.yml      EAS iOS build on macOS runner, on push to main
+  android-build.yml  EAS Android APK build on ubuntu-latest, on push to main
 ```
 
 ## Notes
 
 - The EAS workflow is correct-by-construction but has not been run end to end
-  here: this machine has no Apple Developer account and no Expo token.
-- Bundle identifier: `com.p3xz.gymsync`. Change it in `app.json` if you want
-  your own before the first production build.
+  here: this machine has no Expo token, so add `EXPO_TOKEN` before the first
+  push-triggered build.
+- Android package: `com.p3xz.gymsync`. iOS bundle identifier: `com.p3xz.gymsync`.
+  Change them in `app.json` if you want your own before the first production
+  build.
