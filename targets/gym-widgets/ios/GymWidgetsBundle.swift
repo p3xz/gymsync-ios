@@ -1,3 +1,5 @@
+import WidgetKit
+
 @main
 struct GymWidgetsBundle: WidgetBundle {
   var body: some Widget {
