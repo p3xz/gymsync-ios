@@ -3,10 +3,20 @@
 
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../_layout';
 import { Storage } from '../../lib/storage';
+import { toast } from '../../lib/toast';
 import { clearGeminiKey, getGeminiKey, saveGeminiKey } from '../../lib/gemini';
 import { colors, radius, spacing } from '../../lib/theme';
 import type { HistoryEntry } from '../../lib/workout';
@@ -21,29 +31,35 @@ export default function Profile() {
   const [apiKey, setApiKey] = useState('');
   const [hasKey, setHasKey] = useState(false);
   const [keySavedNote, setKeySavedNote] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+
+  const reload = useCallback(async () => {
+    try {
+      const [h, s, b, key] = await Promise.all([
+        Storage.get<HistoryEntry[]>('workoutHistory', []),
+        Storage.get<number>('streak', 0),
+        Storage.get<number>('bestStreak', 0),
+        getGeminiKey(),
+      ]);
+      setTotalWorkouts(h.length);
+      setStreak(s);
+      setBestStreak(b);
+      setHasKey(key.length > 0);
+      if (!key) setApiKey('');
+      setLoadError(false);
+    } catch {
+      setLoadError(true);
+    } finally {
+      setInitialLoading(false);
+    }
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
-      let cancelled = false;
       setDraftName(name ?? '');
-      (async () => {
-        const [h, s, b, key] = await Promise.all([
-          Storage.get<HistoryEntry[]>('workoutHistory', []),
-          Storage.get<number>('streak', 0),
-          Storage.get<number>('bestStreak', 0),
-          getGeminiKey(),
-        ]);
-        if (cancelled) return;
-        setTotalWorkouts(h.length);
-        setStreak(s);
-        setBestStreak(b);
-        setHasKey(key.length > 0);
-        if (!key) setApiKey('');
-      })();
-      return () => {
-        cancelled = true;
-      };
-    }, [name])
+      void reload();
+    }, [name, reload])
   );
 
   const saveName = async () => {
@@ -63,6 +79,7 @@ export default function Profile() {
     setHasKey(true);
     setKeySavedNote(true);
     setTimeout(() => setKeySavedNote(false), 2000);
+    toast('API key saved');
   };
 
   const removeKey = () => {
@@ -75,6 +92,7 @@ export default function Profile() {
           await clearGeminiKey();
           setHasKey(false);
           setApiKey('');
+          toast('API key removed');
         },
       },
     ]);
@@ -95,10 +113,27 @@ export default function Profile() {
     );
   };
 
+  if (initialLoading) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color={colors.primaryStrong} />
+      </View>
+    );
+  }
+
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <Text style={styles.title}>Profile</Text>
       <Text style={styles.meta}>Manage your name, progress, and data</Text>
+
+      {loadError && (
+        <View style={styles.card}>
+          <Text style={styles.errorTitle}>Couldn't load your data.</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={() => void reload()} activeOpacity={0.8}>
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       <View style={styles.card}>
         <Text style={styles.cardLabel}>Your Name</Text>
@@ -212,6 +247,31 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     paddingBottom: spacing.xl,
     gap: spacing.md,
+  },
+  centered: {
+    flex: 1,
+    backgroundColor: colors.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorTitle: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: spacing.sm,
+  },
+  retryButton: {
+    backgroundColor: colors.card,
+    borderColor: colors.borderStrong,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+  },
+  retryButtonText: {
+    color: colors.primaryStrong,
+    fontSize: 15,
+    fontWeight: '600',
   },
   title: {
     color: colors.text,

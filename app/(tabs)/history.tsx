@@ -4,7 +4,15 @@
 
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Storage } from '../../lib/storage';
 import { colors, radius, spacing } from '../../lib/theme';
@@ -14,31 +22,71 @@ export default function History() {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [streak, setStreak] = useState(0);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+
+  const reload = useCallback(async () => {
+    try {
+      const [h, s] = await Promise.all([
+        Storage.get<HistoryEntry[]>('workoutHistory', []),
+        Storage.get<number>('streak', 0),
+      ]);
+      setHistory(h);
+      setStreak(s);
+      setLoadError(false);
+    } catch {
+      setLoadError(true);
+    } finally {
+      setInitialLoading(false);
+    }
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
-      let cancelled = false;
-      (async () => {
-        const [h, s] = await Promise.all([
-          Storage.get<HistoryEntry[]>('workoutHistory', []),
-          Storage.get<number>('streak', 0),
-        ]);
-        if (cancelled) return;
-        setHistory(h);
-        setStreak(s);
-      })();
-      return () => {
-        cancelled = true;
-      };
-    }, [])
+      void reload();
+    }, [reload])
   );
 
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await reload();
+    setRefreshing(false);
+  }, [reload]);
+
+  if (initialLoading) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color={colors.primaryStrong} />
+      </View>
+    );
+  }
+
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => void onRefresh()}
+          tintColor={colors.primaryStrong}
+        />
+      }
+    >
       <Text style={styles.title}>History</Text>
       <Text style={styles.meta}>
         {history.length === 0 ? 'No workouts logged yet' : `${history.length} workout${history.length === 1 ? '' : 's'} logged`}
       </Text>
+
+      {loadError && (
+        <View style={styles.card}>
+          <Text style={styles.errorTitle}>Couldn't load your data.</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={() => void reload()} activeOpacity={0.8}>
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       <View style={styles.statRow}>
         <View style={[styles.card, styles.statCard]}>
@@ -53,7 +101,15 @@ export default function History() {
         </View>
       </View>
 
-      {history.map((entry) => {
+      {history.length === 0 ? (
+        <View style={styles.card}>
+          <Text style={styles.emptyTitle}>No workouts logged yet</Text>
+          <Text style={styles.emptySub}>
+            Finish a workout and it will show up here with all your sets and notes.
+          </Text>
+        </View>
+      ) : (
+        history.map((entry) => {
         const expanded = expandedId === entry.id;
         return (
           <View key={entry.id} style={styles.card}>
@@ -104,7 +160,8 @@ export default function History() {
             )}
           </View>
         );
-      })}
+      })
+      )}
     </ScrollView>
   );
 }
@@ -128,6 +185,41 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 14,
     marginTop: -spacing.sm,
+  },
+  centered: {
+    flex: 1,
+    backgroundColor: colors.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorTitle: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: spacing.sm,
+  },
+  retryButton: {
+    backgroundColor: colors.card,
+    borderColor: colors.borderStrong,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+  },
+  retryButtonText: {
+    color: colors.primaryStrong,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  emptyTitle: {
+    color: colors.text,
+    fontSize: 17,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  emptySub: {
+    color: colors.textSecondary,
+    fontSize: 14,
   },
   card: {
     backgroundColor: colors.card,

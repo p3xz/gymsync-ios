@@ -4,20 +4,22 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../lib/theme';
+import ToastHost from '../../components/ToastHost';
 
 export default function TabsLayout() {
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: colors.primaryStrong,
-        tabBarInactiveTintColor: colors.textTertiary,
-        tabBarStyle: {
-          backgroundColor: colors.elevated,
-          borderTopColor: colors.border,
-        },
-      }}
-    >
+    <>
+      <Tabs
+        screenOptions={{
+          headerShown: false,
+          tabBarActiveTintColor: colors.primaryStrong,
+          tabBarInactiveTintColor: colors.textTertiary,
+          tabBarStyle: {
+            backgroundColor: colors.elevated,
+            borderTopColor: colors.border,
+          },
+        }}
+      >
       <Tabs.Screen
         name="index"
         options={{
@@ -53,6 +55,8 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size }) => <Ionicons name="person" color={color} size={size} />,
         }}
       />
-    </Tabs>
+      </Tabs>
+      <ToastHost />
+    </>
   );
 }

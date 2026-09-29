@@ -2,15 +2,21 @@
 // notes inputs, a live timer, a progress bar, and a finish flow that saves
 // the session and shows a summary sheet. Respects the weekly schedule,
 // so custom routines assigned to today appear here automatically.
+//
+// The in-progress session is persisted to AsyncStorage on every change, so
+// killing the app mid-workout loses nothing: reopening the tab today
+// restores the session and resumes the timer from the original start time.
 
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -19,6 +25,10 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, spacing } from '../../lib/theme';
+import { Storage } from '../../lib/storage';
+import { toast } from '../../lib/toast';
+import { impactLight, notifySuccess } from '../../lib/haptics';
+import { keepAwakeOff, keepAwakeOn } from '../../lib/keepAwake';
 import {
   formatElapsed,
   getTodaysWorkout,
@@ -43,6 +53,16 @@ interface Summary {
   calories: number;
 }
 
+/** What gets written to storage so an interrupted workout can resume. */
+interface PersistedSession {
+  dateKey: string;
+  startedAt: number;
+  title: string;
+  exercises: ExerciseState[];
+}
+
+const SESSION_KEY = 'inProgressWorkout';
+
 export default function Workout() {
   const router = useRouter();
   const [workout, setWorkout] = useState<ResolvedWorkout | null>(null);
@@ -54,6 +74,8 @@ export default function Workout() {
   const [finishing, setFinishing] = useState(false);
   const startTimeRef = useRef<number>(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Non-reactive mirror used by event handlers to persist without stale closures.
+  const sessionRef = useRef<{ dateKey: string; startedAt: number; title: string } | null>(null);
 
   const stopTimer = useCallback(() => {
     if (timerRef.current) {
@@ -62,26 +84,67 @@ export default function Workout() {
     }
   }, []);
 
+  /** Writes the current session to storage; silent no-op when there is none. */
+  const writeSession = (exercisesToSave: ExerciseState[]) => {
+    const meta = sessionRef.current;
+    if (!meta) return;
+    const payload: PersistedSession = {
+      dateKey: meta.dateKey,
+      startedAt: meta.startedAt,
+      title: meta.title,
+      exercises: exercisesToSave,
+    };
+    void Storage.set(SESSION_KEY, payload);
+  };
+
+  const startTicking = useCallback(() => {
+    stopTimer();
+    timerRef.current = setInterval(() => {
+      setElapsedMs(Date.now() - startTimeRef.current);
+    }, 1000);
+  }, [stopTimer]);
+
   const startSession = useCallback(
-    (resolved: ResolvedWorkout, dateKey: string) => {
-      stopTimer();
-      startTimeRef.current = Date.now();
-      setElapsedMs(0);
-      setExercises(
-        resolved.exercises.map((def) => ({ def, completed: false, weight: '', notes: '' }))
-      );
+    (resolved: ResolvedWorkout, dateKey: string, startedAt?: number) => {
+      const start = startedAt ?? Date.now();
+      startTimeRef.current = start;
+      sessionRef.current = { dateKey, startedAt: start, title: resolved.title };
+      const fresh = resolved.exercises.map((def) => ({ def, completed: false, weight: '', notes: '' }));
+      setElapsedMs(startedAt ? Date.now() - start : 0);
+      setExercises(fresh);
       setSessionDateKey(dateKey);
       setLoggedToday(false);
-      timerRef.current = setInterval(() => {
-        setElapsedMs(Date.now() - startTimeRef.current);
-      }, 1000);
+      writeSession(fresh);
+      void keepAwakeOn();
+      startTicking();
     },
-    [stopTimer]
+    [startTicking]
+  );
+
+  /** Restores an interrupted session stored earlier today. */
+  const restoreSession = useCallback(
+    (stored: PersistedSession, dateKey: string) => {
+      startTimeRef.current = stored.startedAt;
+      sessionRef.current = { dateKey, startedAt: stored.startedAt, title: stored.title };
+      setWorkout({
+        title: stored.title,
+        isRest: false,
+        exercises: stored.exercises.map((ex) => ex.def),
+        subtitle: `${stored.exercises.length} exercise${stored.exercises.length === 1 ? '' : 's'}`,
+      });
+      setExercises(stored.exercises);
+      setElapsedMs(Date.now() - stored.startedAt);
+      setSessionDateKey(dateKey);
+      setLoggedToday(false);
+      void keepAwakeOn();
+      startTicking();
+    },
+    [startTicking]
   );
 
   // Every time the tab is focused: start a fresh session for a new day,
-  // otherwise leave the in-progress session exactly as the user left it.
-  // This mirrors the web app's "only set up once per day" guard.
+  // restore an interrupted session from today, otherwise leave the
+  // in-progress session exactly as the user left it.
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
@@ -91,27 +154,50 @@ export default function Workout() {
         const resolved = await getTodaysWorkout();
         if (cancelled) return;
         setWorkout(resolved);
-        if (!resolved.isRest) startSession(resolved, todayKey);
-        else setSessionDateKey(todayKey);
+        if (resolved.isRest) {
+          // Rest days never hold a session; drop anything stale.
+          setSessionDateKey(todayKey);
+          sessionRef.current = null;
+          await Storage.remove(SESSION_KEY);
+          await keepAwakeOff();
+          return;
+        }
+        const stored = await Storage.get<PersistedSession | null>(SESSION_KEY, null);
+        if (cancelled) return;
+        if (stored && stored.dateKey === todayKey && stored.exercises.length > 0) {
+          restoreSession(stored, todayKey);
+        } else {
+          if (stored) await Storage.remove(SESSION_KEY); // stale session, discard silently
+          startSession(resolved, todayKey);
+        }
       })();
       return () => {
         cancelled = true;
       };
-    }, [sessionDateKey, startSession])
+    }, [sessionDateKey, restoreSession, startSession])
   );
 
-  useEffect(() => stopTimer, [stopTimer]);
+  useEffect(
+    () => () => {
+      stopTimer();
+      void keepAwakeOff();
+    },
+    [stopTimer]
+  );
 
   const toggleExercise = (index: number) => {
-    setExercises((prev) =>
-      prev.map((ex, i) => (i === index ? { ...ex, completed: !ex.completed } : ex))
+    const next = exercises.map((ex, i) =>
+      i === index ? { ...ex, completed: !ex.completed } : ex
     );
+    setExercises(next);
+    writeSession(next);
+    void impactLight();
   };
 
   const updateField = (index: number, field: 'weight' | 'notes', value: string) => {
-    setExercises((prev) =>
-      prev.map((ex, i) => (i === index ? { ...ex, [field]: value } : ex))
-    );
+    const next = exercises.map((ex, i) => (i === index ? { ...ex, [field]: value } : ex));
+    setExercises(next);
+    writeSession(next);
   };
 
   const completedCount = exercises.filter((ex) => ex.completed).length;
@@ -138,6 +224,13 @@ export default function Workout() {
       exerciseData,
     });
 
+    // Session is done: clear the persisted copy and release the wake lock.
+    sessionRef.current = null;
+    await Storage.remove(SESSION_KEY);
+    await keepAwakeOff();
+    void notifySuccess();
+    toast('Workout saved to history');
+
     setLoggedToday(true);
     setFinishing(false);
     setSummary({
@@ -150,20 +243,29 @@ export default function Workout() {
   };
 
   const confirmFinish = () => {
-    Alert.alert(
-      'Finish workout?',
-      'Your progress will be saved to history.',
-      [
-        { text: 'Keep Going', style: 'cancel' },
-        { text: 'Finish', style: 'default', onPress: () => void finishWorkout() },
-      ]
-    );
+    Alert.alert('Finish workout?', 'Your progress will be saved to history.', [
+      { text: 'Keep Going', style: 'cancel' },
+      { text: 'Finish', style: 'default', onPress: () => void finishWorkout() },
+    ]);
+  };
+
+  const shareSummary = async () => {
+    if (!summary) return;
+    const message =
+      `Just finished ${summary.title} with GymSync: ` +
+      `${summary.exercisesCompleted}/${summary.totalExercises} exercises, ` +
+      `${summary.durationLabel}, ~${summary.calories} kcal.`;
+    try {
+      await Share.share({ message });
+    } catch {
+      // Dismissed or failed; stay silent.
+    }
   };
 
   if (!workout) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.muted}>Loading today's workout</Text>
+        <ActivityIndicator size="large" color={colors.primaryStrong} />
       </View>
     );
   }
@@ -290,16 +392,26 @@ export default function Workout() {
               </View>
             </View>
             <Text style={styles.modalNote}>Great work. Your progress has been saved.</Text>
-            <TouchableOpacity
-              style={styles.startButton}
-              onPress={() => {
-                setSummary(null);
-                router.navigate('/');
-              }}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.startButtonText}>Done</Text>
-            </TouchableOpacity>
+            <View style={styles.summaryActions}>
+              <TouchableOpacity
+                style={[styles.summaryButton, styles.shareButton]}
+                onPress={() => void shareSummary()}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="share-outline" size={18} color={colors.primaryStrong} />
+                <Text style={styles.shareButtonText}>Share</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.summaryButton, styles.startButton]}
+                onPress={() => {
+                  setSummary(null);
+                  router.navigate('/');
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.startButtonText}>Done</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -321,6 +433,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
     justifyContent: 'center',
+    alignItems: 'center',
     padding: spacing.lg,
   },
   card: {
@@ -531,11 +644,31 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: spacing.md,
   },
-  startButton: {
-    backgroundColor: colors.primary,
+  summaryActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  summaryButton: {
+    flex: 1,
     borderRadius: radius.md,
     padding: spacing.md,
     alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: spacing.xs,
+  },
+  shareButton: {
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderWidth: 1,
+  },
+  shareButtonText: {
+    color: colors.primaryStrong,
+    fontSize: 17,
+    fontWeight: '600',
+  },
+  startButton: {
+    backgroundColor: colors.primary,
   },
   startButtonText: {
     color: '#ffffff',

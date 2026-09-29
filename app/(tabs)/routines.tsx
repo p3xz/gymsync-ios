@@ -8,18 +8,23 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, spacing } from '../../lib/theme';
+import { toast } from '../../lib/toast';
+import { impactMedium, notifyError, notifySuccess } from '../../lib/haptics';
 import { editRoutineWithAi, generateRoutineFromText, getGeminiKey } from '../../lib/gemini';
 import {
   DEFAULT_SCHEDULE,
@@ -68,11 +73,28 @@ export default function Routines() {
   const [aiBusy, setAiBusy] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
 
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+
   const reload = useCallback(async () => {
-    const [r, s] = await Promise.all([getCustomRoutines(), getWeeklySchedule()]);
-    setRoutines(r);
-    setSchedule(s);
+    try {
+      const [r, s] = await Promise.all([getCustomRoutines(), getWeeklySchedule()]);
+      setRoutines(r);
+      setSchedule(s);
+      setLoadError(false);
+    } catch {
+      setLoadError(true);
+    } finally {
+      setInitialLoading(false);
+    }
   }, []);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await reload();
+    setRefreshing(false);
+  }, [reload]);
 
   useFocusEffect(
     useCallback(() => {
@@ -129,6 +151,7 @@ export default function Routines() {
     if (!editing) return;
     const name = draftName.trim();
     if (!name) {
+      void notifyError();
       Alert.alert('Name required', 'Give your routine a name first.');
       return;
     }
@@ -141,6 +164,7 @@ export default function Routines() {
         targetReps: ex.reps.trim() || '8-12',
       }));
     if (exercises.length === 0) {
+      void notifyError();
       Alert.alert('No exercises', 'Add at least one exercise to the routine.');
       return;
     }
@@ -152,6 +176,7 @@ export default function Routines() {
     setRoutines(next);
     await saveCustomRoutines(next);
     setEditing(null);
+    toast('Routine saved');
   };
 
   const deleteRoutine = (routine: CustomRoutine) => {
@@ -161,6 +186,7 @@ export default function Routines() {
         text: 'Delete',
         style: 'destructive',
         onPress: async () => {
+          void impactMedium();
           const nextRoutines = routines.filter((r) => r.id !== routine.id);
           // Days that pointed at the deleted routine fall back to the default split.
           const nextSchedule = schedule.map((plan, i) =>
@@ -170,6 +196,7 @@ export default function Routines() {
           setSchedule(nextSchedule);
           await saveCustomRoutines(nextRoutines);
           await saveWeeklySchedule(nextSchedule);
+          toast('Routine deleted');
         },
       },
     ]);
@@ -226,6 +253,7 @@ export default function Routines() {
         }))
       );
       setAiTarget(null);
+      void notifySuccess();
     } catch (error) {
       setAiError(error instanceof Error ? error.message : 'Something went wrong. Try again.');
     } finally {
@@ -235,10 +263,38 @@ export default function Routines() {
 
   /* ---------------- render ---------------- */
 
+  if (initialLoading) {
+    return (
+      <View style={styles.screen}>
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={colors.primaryStrong} />
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.screen}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => void onRefresh()}
+            tintColor={colors.primaryStrong}
+          />
+        }
+      >
         <Text style={styles.title}>Routines</Text>
+
+        {loadError && (
+          <View style={styles.card}>
+            <Text style={styles.errorTitle}>Couldn't load your data.</Text>
+            <TouchableOpacity style={styles.retryButton} onPress={() => void reload()} activeOpacity={0.8}>
+              <Text style={styles.retryButtonText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Weekly schedule */}
         <Text style={styles.sectionLabel}>Weekly Schedule</Text>
@@ -344,10 +400,11 @@ export default function Routines() {
 
       {/* Routine editor */}
       <Modal visible={editing !== null} transparent animationType="slide">
-        <KeyboardAvoidingView
-          style={styles.modalBackdrop}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+          <KeyboardAvoidingView
+            style={styles.modalBackdrop}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          >
           <View style={[styles.modalCard, styles.editorCard]}>
             <Text style={styles.modalTitle}>{editing && routines.some((r) => r.id === editing.id) ? 'Edit Routine' : 'New Routine'}</Text>
             <Text style={styles.inputLabel}>Routine name</Text>
@@ -417,15 +474,17 @@ export default function Routines() {
               </TouchableOpacity>
             </View>
           </View>
-        </KeyboardAvoidingView>
+          </KeyboardAvoidingView>
+        </TouchableWithoutFeedback>
       </Modal>
 
       {/* AI coach: describe what you want, get a routine back */}
       <Modal visible={aiTarget !== null} transparent animationType="slide">
-        <KeyboardAvoidingView
-          style={styles.modalBackdrop}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+          <KeyboardAvoidingView
+            style={styles.modalBackdrop}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          >
           <View style={[styles.modalCard, styles.editorCard]}>
             <View style={styles.aiTitleRow}>
               <Ionicons name="sparkles" size={20} color={colors.primaryStrong} />
@@ -480,7 +539,8 @@ export default function Routines() {
               </TouchableOpacity>
             </View>
           </View>
-        </KeyboardAvoidingView>
+          </KeyboardAvoidingView>
+        </TouchableWithoutFeedback>
       </Modal>
     </View>
   );
@@ -490,6 +550,31 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  centered: {
+    flex: 1,
+    backgroundColor: colors.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorTitle: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: spacing.sm,
+  },
+  retryButton: {
+    backgroundColor: colors.card,
+    borderColor: colors.borderStrong,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+  },
+  retryButtonText: {
+    color: colors.primaryStrong,
+    fontSize: 15,
+    fontWeight: '600',
   },
   content: {
     padding: spacing.lg,

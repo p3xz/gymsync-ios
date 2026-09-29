@@ -3,7 +3,15 @@
 
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../_layout';
 import { Storage } from '../../lib/storage';
@@ -31,6 +39,9 @@ export default function Home() {
   const [now, setNow] = useState(() => new Date());
   const [workout, setWorkout] = useState<ResolvedWorkout | null>(null);
   const [stats, setStats] = useState<HomeStats>({ streak: 0, completedThisWeek: 0, trainingDays: 0, lastWorkoutLabel: 'No workouts yet' });
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   // Live clock, ticking once a second like the web dashboard.
   useEffect(() => {
@@ -38,43 +49,80 @@ export default function Home() {
     return () => clearInterval(id);
   }, []);
 
+  const reload = useCallback(async () => {
+    try {
+      const [resolved, streak, completedThisWeek, trainingDays, lastWorkout] = await Promise.all([
+        getTodaysWorkout(),
+        Storage.get<number>('streak', 0),
+        Storage.get<number>('completedThisWeek', 0),
+        getTrainingDaysPerWeek(),
+        Storage.get<{ split: string; dateLabel: string } | null>('lastWorkout', null),
+      ]);
+      setWorkout(resolved);
+      setStats({
+        streak,
+        completedThisWeek,
+        trainingDays,
+        lastWorkoutLabel: lastWorkout ? `${lastWorkout.split} - ${lastWorkout.dateLabel}` : 'No workouts yet',
+      });
+      setLoadError(false);
+    } catch {
+      setLoadError(true);
+    } finally {
+      setInitialLoading(false);
+    }
+  }, []);
+
   // Re-read stats and today's workout every time the tab regains focus,
   // so finishing a workout on the Workout tab updates this screen.
   useFocusEffect(
     useCallback(() => {
-      let cancelled = false;
-      (async () => {
-        const [resolved, streak, completedThisWeek, trainingDays, lastWorkout] = await Promise.all([
-          getTodaysWorkout(),
-          Storage.get<number>('streak', 0),
-          Storage.get<number>('completedThisWeek', 0),
-          getTrainingDaysPerWeek(),
-          Storage.get<{ split: string; dateLabel: string } | null>('lastWorkout', null),
-        ]);
-        if (cancelled) return;
-        setWorkout(resolved);
-        setStats({
-          streak,
-          completedThisWeek,
-          trainingDays,
-          lastWorkoutLabel: lastWorkout ? `${lastWorkout.split} - ${lastWorkout.dateLabel}` : 'No workouts yet',
-        });
-      })();
-      return () => {
-        cancelled = true;
-      };
-    }, [])
+      void reload();
+    }, [reload])
   );
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await reload();
+    setRefreshing(false);
+  }, [reload]);
 
   const quote = getQuoteForToday(now);
   const greeting = name ? `Welcome back, ${name}` : 'Welcome back';
 
+  if (initialLoading) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color={colors.primaryStrong} />
+      </View>
+    );
+  }
+
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => void onRefresh()}
+          tintColor={colors.primaryStrong}
+        />
+      }
+    >
       <Text style={styles.greeting}>{greeting}</Text>
       <Text style={styles.meta}>
         {WEEKDAY_NAMES[now.getDay()]} · {formatDateLabel(now)} · {formatClock(now)}
       </Text>
+
+      {loadError && (
+        <View style={styles.card}>
+          <Text style={styles.errorTitle}>Couldn't load your data.</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={() => void reload()} activeOpacity={0.8}>
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Today's workout */}
       <View style={styles.card}>
@@ -162,6 +210,31 @@ const styles = StyleSheet.create({
     color: colors.textTertiary,
     fontSize: 14,
     marginTop: 4,
+  },
+  centered: {
+    flex: 1,
+    backgroundColor: colors.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorTitle: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: spacing.sm,
+  },
+  retryButton: {
+    backgroundColor: colors.card,
+    borderColor: colors.borderStrong,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+  },
+  retryButtonText: {
+    color: colors.primaryStrong,
+    fontSize: 15,
+    fontWeight: '600',
   },
   statRow: {
     flexDirection: 'row',
