@@ -5,6 +5,7 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   FlatList,
   KeyboardAvoidingView,
@@ -19,6 +20,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, spacing } from '../../lib/theme';
+import { editRoutineWithAi, generateRoutineFromText, getGeminiKey } from '../../lib/gemini';
 import {
   DEFAULT_SCHEDULE,
   WEEKDAY_NAMES,
@@ -58,6 +60,13 @@ export default function Routines() {
   const [editing, setEditing] = useState<CustomRoutine | null>(null);
   const [draftName, setDraftName] = useState('');
   const [draftExercises, setDraftExercises] = useState<DraftExercise[]>([]);
+
+  // AI coach modal. Null = closed; otherwise generating a new routine or
+  // editing the given one from a plain-words prompt.
+  const [aiTarget, setAiTarget] = useState<null | { mode: 'new' } | { mode: 'edit'; routine: CustomRoutine }>(null);
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     const [r, s] = await Promise.all([getCustomRoutines(), getWeeklySchedule()]);
@@ -166,6 +175,64 @@ export default function Routines() {
     ]);
   };
 
+  /* ---------------- AI coach ---------------- */
+
+  const openAiNew = () => {
+    setAiTarget({ mode: 'new' });
+    setAiPrompt('');
+    setAiError(null);
+  };
+
+  const openAiEdit = (routine: CustomRoutine) => {
+    setAiTarget({ mode: 'edit', routine });
+    setAiPrompt('');
+    setAiError(null);
+  };
+
+  /** Runs the AI request, then drops the result into the routine editor as a draft. */
+  const runAiGenerate = async () => {
+    if (!aiTarget || aiBusy) return;
+    const prompt = aiPrompt.trim();
+    if (!prompt) {
+      setAiError(
+        aiTarget.mode === 'new'
+          ? 'Describe the routine you want first.'
+          : 'Tell the AI what to change first.'
+      );
+      return;
+    }
+    const apiKey = await getGeminiKey();
+    if (!apiKey) {
+      setAiError('Add your Gemini API key in the Profile tab to use AI features.');
+      return;
+    }
+    setAiBusy(true);
+    setAiError(null);
+    try {
+      const result =
+        aiTarget.mode === 'new'
+          ? await generateRoutineFromText(prompt, apiKey)
+          : await editRoutineWithAi(aiTarget.routine, prompt, apiKey);
+      // Load the AI result into the normal editor so the user reviews it before saving.
+      const routineId = aiTarget.mode === 'new' ? makeRoutineId() : aiTarget.routine.id;
+      setEditing({ id: routineId, name: result.name, exercises: [] });
+      setDraftName(result.name);
+      setDraftExercises(
+        result.exercises.map((ex, i) => ({
+          key: `ai-${routineId}-${i}`,
+          name: ex.name,
+          sets: String(ex.targetSets),
+          reps: ex.targetReps,
+        }))
+      );
+      setAiTarget(null);
+    } catch (error) {
+      setAiError(error instanceof Error ? error.message : 'Something went wrong. Try again.');
+    } finally {
+      setAiBusy(false);
+    }
+  };
+
   /* ---------------- render ---------------- */
 
   return (
@@ -195,10 +262,16 @@ export default function Routines() {
         {/* Custom routines */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionLabel}>My Routines</Text>
-          <TouchableOpacity style={styles.addButton} onPress={openNewRoutine} activeOpacity={0.8}>
-            <Ionicons name="add" size={16} color="#ffffff" />
-            <Text style={styles.addButtonText}>New</Text>
-          </TouchableOpacity>
+          <View style={styles.sectionActions}>
+            <TouchableOpacity style={styles.aiButton} onPress={openAiNew} activeOpacity={0.8}>
+              <Ionicons name="sparkles" size={16} color="#ffffff" />
+              <Text style={styles.addButtonText}>AI</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.addButton} onPress={openNewRoutine} activeOpacity={0.8}>
+              <Ionicons name="add" size={16} color="#ffffff" />
+              <Text style={styles.addButtonText}>New</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {routines.length === 0 ? (
@@ -217,6 +290,9 @@ export default function Routines() {
                     {routine.exercises.length} exercise{routine.exercises.length === 1 ? '' : 's'}
                   </Text>
                 </View>
+                <TouchableOpacity onPress={() => openAiEdit(routine)} hitSlop={8} activeOpacity={0.7}>
+                  <Ionicons name="sparkles-outline" size={18} color={colors.primaryStrong} />
+                </TouchableOpacity>
                 <TouchableOpacity onPress={() => openEditRoutine(routine)} hitSlop={8} activeOpacity={0.7}>
                   <Ionicons name="pencil" size={18} color={colors.primaryStrong} />
                 </TouchableOpacity>
@@ -338,6 +414,69 @@ export default function Routines() {
                 activeOpacity={0.8}
               >
                 <Text style={styles.saveButtonText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* AI coach: describe what you want, get a routine back */}
+      <Modal visible={aiTarget !== null} transparent animationType="slide">
+        <KeyboardAvoidingView
+          style={styles.modalBackdrop}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <View style={[styles.modalCard, styles.editorCard]}>
+            <View style={styles.aiTitleRow}>
+              <Ionicons name="sparkles" size={20} color={colors.primaryStrong} />
+              <Text style={styles.modalTitle}>
+                {aiTarget?.mode === 'edit' ? 'Edit with AI' : 'Generate with AI'}
+              </Text>
+            </View>
+            {aiTarget?.mode === 'edit' && (
+              <Text style={styles.muted}>Editing "{aiTarget.routine.name}"</Text>
+            )}
+            <Text style={styles.inputLabel}>
+              {aiTarget?.mode === 'edit'
+                ? 'What should change?'
+                : 'Describe the routine you want'}
+            </Text>
+            <TextInput
+              style={[styles.input, styles.aiInput]}
+              value={aiPrompt}
+              onChangeText={setAiPrompt}
+              placeholder={
+                aiTarget?.mode === 'edit'
+                  ? 'e.g. make it harder, dumbbells only'
+                  : 'e.g. push day focused on chest, 45 minutes, intermediate'
+              }
+              placeholderTextColor={colors.textTertiary}
+              multiline
+              numberOfLines={4}
+              maxLength={500}
+              editable={!aiBusy}
+            />
+            {aiError && <Text style={styles.aiError}>{aiError}</Text>}
+            <View style={styles.editorActions}>
+              <TouchableOpacity
+                style={[styles.editorButton, styles.cancelButton]}
+                onPress={() => setAiTarget(null)}
+                activeOpacity={0.8}
+                disabled={aiBusy}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.editorButton, styles.saveButton, aiBusy && styles.disabledButton]}
+                onPress={() => void runAiGenerate()}
+                activeOpacity={0.8}
+                disabled={aiBusy}
+              >
+                {aiBusy ? (
+                  <ActivityIndicator color="#ffffff" size="small" />
+                ) : (
+                  <Text style={styles.saveButtonText}>Generate</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -546,5 +685,37 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  sectionActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  aiButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.primaryStrong,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  aiTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  aiInput: {
+    minHeight: 96,
+    textAlignVertical: 'top',
+    paddingTop: spacing.sm,
+  },
+  aiError: {
+    color: colors.danger,
+    fontSize: 14,
+    marginTop: spacing.xs,
+  },
+  disabledButton: {
+    opacity: 0.6,
   },
 });

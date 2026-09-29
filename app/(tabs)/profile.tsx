@@ -7,6 +7,7 @@ import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View 
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../_layout';
 import { Storage } from '../../lib/storage';
+import { clearGeminiKey, getGeminiKey, saveGeminiKey } from '../../lib/gemini';
 import { colors, radius, spacing } from '../../lib/theme';
 import type { HistoryEntry } from '../../lib/workout';
 
@@ -17,21 +18,27 @@ export default function Profile() {
   const [totalWorkouts, setTotalWorkouts] = useState(0);
   const [streak, setStreak] = useState(0);
   const [bestStreak, setBestStreak] = useState(0);
+  const [apiKey, setApiKey] = useState('');
+  const [hasKey, setHasKey] = useState(false);
+  const [keySavedNote, setKeySavedNote] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
       setDraftName(name ?? '');
       (async () => {
-        const [h, s, b] = await Promise.all([
+        const [h, s, b, key] = await Promise.all([
           Storage.get<HistoryEntry[]>('workoutHistory', []),
           Storage.get<number>('streak', 0),
           Storage.get<number>('bestStreak', 0),
+          getGeminiKey(),
         ]);
         if (cancelled) return;
         setTotalWorkouts(h.length);
         setStreak(s);
         setBestStreak(b);
+        setHasKey(key.length > 0);
+        if (!key) setApiKey('');
       })();
       return () => {
         cancelled = true;
@@ -46,6 +53,31 @@ export default function Profile() {
     await refreshName();
     setSavedNote(true);
     setTimeout(() => setSavedNote(false), 2000);
+  };
+
+  const saveKey = async () => {
+    const trimmed = apiKey.trim();
+    if (!trimmed) return;
+    await saveGeminiKey(trimmed);
+    setApiKey('');
+    setHasKey(true);
+    setKeySavedNote(true);
+    setTimeout(() => setKeySavedNote(false), 2000);
+  };
+
+  const removeKey = () => {
+    Alert.alert('Remove API key?', 'AI routine features will stop working until you add a key again.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: async () => {
+          await clearGeminiKey();
+          setHasKey(false);
+          setApiKey('');
+        },
+      },
+    ]);
   };
 
   const confirmReset = () => {
@@ -93,6 +125,45 @@ export default function Profile() {
           </TouchableOpacity>
         </View>
         {savedNote && <Text style={styles.savedNote}>Saved.</Text>}
+      </View>
+
+      <View style={styles.card}>
+        <View style={styles.aiCardTitleRow}>
+          <Ionicons name="sparkles" size={18} color={colors.primaryStrong} />
+          <Text style={styles.cardLabel}>AI Coach</Text>
+        </View>
+        <Text style={styles.hint}>
+          {hasKey
+            ? 'API key saved. Use the AI button in the Routines tab to generate or edit routines.'
+            : 'Add a Gemini API key to generate routines with AI. Get a free key at Google AI Studio (aistudio.google.com). The key is stored only on this device.'}
+        </Text>
+        {hasKey ? (
+          <TouchableOpacity style={styles.removeKeyButton} onPress={removeKey} activeOpacity={0.8}>
+            <Text style={styles.removeKeyButtonText}>Remove API Key</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.nameRow}>
+            <TextInput
+              style={[styles.input, styles.nameInput]}
+              value={apiKey}
+              onChangeText={setApiKey}
+              placeholder="Paste Gemini API key"
+              placeholderTextColor={colors.textTertiary}
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <TouchableOpacity
+              style={[styles.saveButton, !apiKey.trim() && styles.saveButtonDisabled]}
+              onPress={() => void saveKey()}
+              activeOpacity={0.8}
+              disabled={!apiKey.trim()}
+            >
+              <Text style={styles.saveButtonText}>Save</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        {keySavedNote && <Text style={styles.savedNote}>Saved.</Text>}
       </View>
 
       <View style={styles.statRow}>
@@ -163,6 +234,29 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 13,
     marginBottom: spacing.xs,
+  },
+  aiCardTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  hint: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: spacing.sm,
+  },
+  removeKeyButton: {
+    borderColor: colors.danger,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+  },
+  removeKeyButtonText: {
+    color: colors.danger,
+    fontSize: 15,
+    fontWeight: '600',
   },
   nameRow: {
     flexDirection: 'row',

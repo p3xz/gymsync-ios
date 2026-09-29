@@ -18,9 +18,24 @@ TypeScript, and expo-router. Dark theme, on-device storage, no backend.
   follow this schedule automatically.
 - **History** - total workouts, streak, and an expandable per-workout log
 - **Profile** - edit your name, lifetime stats, and reset-all-data
+- **AI Coach (Gemini)** - describe the routine you want in plain words and get
+  a full routine back, or edit any existing routine with an instruction like
+  "make it harder, dumbbells only". Needs a free Gemini API key (see below).
 
 All data is stored on-device with AsyncStorage under the `gymsync:` key prefix,
 mirroring the web app's localStorage keys.
+
+## AI Coach setup
+
+1. Get a free API key at Google AI Studio (aistudio.google.com).
+2. Open the app's **Profile** tab, paste the key under **AI Coach**, and save.
+3. In the **Routines** tab, tap the **AI** button to generate a routine from a
+   description, or tap the sparkles icon on any routine to edit it with an
+   instruction. The AI result always loads into the routine editor first, so
+   you review it before saving.
+
+The key is stored only on this device (AsyncStorage) and is never sent
+anywhere except Google's Gemini API.
 
 ## Get the APK
 
