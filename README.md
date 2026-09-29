@@ -21,6 +21,9 @@ TypeScript, and expo-router. Dark theme, on-device storage, no backend.
 - **AI Coach (Gemini)** - describe the routine you want in plain words and get
   a full routine back, or edit any existing routine with an instruction like
   "make it harder, dumbbells only". Needs a free Gemini API key (see below).
+- **Polish** - safe-area support for notched iPhones and the Dynamic Island,
+  pull to refresh, toast feedback, haptics, loading and error states, and
+  subtle entrance animations throughout.
 
 All data is stored on-device with AsyncStorage under the `gymsync:` key prefix,
 mirroring the web app's localStorage keys.

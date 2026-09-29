@@ -13,7 +13,9 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useApp } from '../_layout';
+import FadeIn from '../../components/FadeIn';
 import { Storage } from '../../lib/storage';
 import { colors, radius, spacing } from '../../lib/theme';
 import {
@@ -99,17 +101,18 @@ export default function Home() {
   }
 
   return (
-    <ScrollView
-      style={styles.screen}
-      contentContainerStyle={styles.content}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={() => void onRefresh()}
-          tintColor={colors.primaryStrong}
-        />
-      }
-    >
+    <SafeAreaView style={styles.screen} edges={['top']}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => void onRefresh()}
+            tintColor={colors.primaryStrong}
+          />
+        }
+      >
       <Text style={styles.greeting}>{greeting}</Text>
       <Text style={styles.meta}>
         {WEEKDAY_NAMES[now.getDay()]} · {formatDateLabel(now)} · {formatClock(now)}
@@ -125,47 +128,58 @@ export default function Home() {
       )}
 
       {/* Today's workout */}
-      <View style={styles.card}>
-        <Text style={styles.cardLabel}>Today's Workout</Text>
-        <Text style={styles.cardTitle}>{workout ? workout.title : 'Loading'}</Text>
-        <Text style={styles.cardSub}>{workout ? workout.subtitle : 'Loading your split'}</Text>
-      </View>
+      <FadeIn delay={0}>
+        <View style={styles.card}>
+          <Text style={styles.cardLabel}>Today's Workout</Text>
+          <Text style={styles.cardTitle}>{workout ? workout.title : 'Loading'}</Text>
+          <Text style={styles.cardSub}>{workout ? workout.subtitle : 'Loading your split'}</Text>
+        </View>
+      </FadeIn>
 
       {/* Quick stats */}
-      <View style={styles.statRow}>
-        <View style={[styles.card, styles.statCard]}>
-          <Ionicons name="flame" size={20} color={colors.primaryStrong} />
-          <Text style={styles.statValue}>{stats.streak}</Text>
-          <Text style={styles.statLabel}>Day Streak</Text>
+      <FadeIn delay={60}>
+        <View style={styles.statRow}>
+          <View style={[styles.card, styles.statCard]}>
+            <Ionicons name="flame" size={20} color={colors.primaryStrong} />
+            <Text style={styles.statValue}>{stats.streak}</Text>
+            <Text style={styles.statLabel}>Day Streak</Text>
+          </View>
+          <View style={[styles.card, styles.statCard]}>
+            <Ionicons name="checkmark-circle" size={20} color={colors.primaryStrong} />
+            <Text style={styles.statValue}>
+              {stats.completedThisWeek}/{stats.trainingDays}
+            </Text>
+            <Text style={styles.statLabel}>This Week</Text>
+          </View>
         </View>
-        <View style={[styles.card, styles.statCard]}>
-          <Ionicons name="checkmark-circle" size={20} color={colors.primaryStrong} />
-          <Text style={styles.statValue}>
-            {stats.completedThisWeek}/{stats.trainingDays}
-          </Text>
-          <Text style={styles.statLabel}>This Week</Text>
+      </FadeIn>
+      <FadeIn delay={120}>
+        <View style={[styles.card, styles.wideCard]}>
+          <Ionicons name="time" size={20} color={colors.primaryStrong} />
+          <Text style={styles.statValueSmall}>{stats.lastWorkoutLabel}</Text>
+          <Text style={styles.statLabel}>Last Workout</Text>
         </View>
-      </View>
-      <View style={[styles.card, styles.wideCard]}>
-        <Ionicons name="time" size={20} color={colors.primaryStrong} />
-        <Text style={styles.statValueSmall}>{stats.lastWorkoutLabel}</Text>
-        <Text style={styles.statLabel}>Last Workout</Text>
-      </View>
+      </FadeIn>
 
       {/* Motivational quote */}
-      <View style={styles.card}>
-        <Text style={styles.quoteText}>"{quote.text}"</Text>
-        <Text style={styles.quoteAuthor}>- {quote.author}</Text>
-      </View>
+      <FadeIn delay={180}>
+        <View style={styles.card}>
+          <Text style={styles.quoteText}>"{quote.text}"</Text>
+          <Text style={styles.quoteAuthor}>- {quote.author}</Text>
+        </View>
+      </FadeIn>
 
-      <TouchableOpacity
-        style={styles.startButton}
-        onPress={() => router.navigate('/workout')}
-        activeOpacity={0.85}
-      >
-        <Text style={styles.startButtonText}>Start Workout</Text>
-      </TouchableOpacity>
+      <FadeIn delay={240}>
+        <TouchableOpacity
+          style={styles.startButton}
+          onPress={() => router.navigate('/workout')}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.startButtonText}>Start Workout</Text>
+        </TouchableOpacity>
+      </FadeIn>
     </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -173,6 +187,9 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
     padding: spacing.lg,
@@ -183,6 +200,7 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 28,
     fontWeight: '700',
+    marginTop: spacing.md,
   },
   meta: {
     color: colors.textSecondary,

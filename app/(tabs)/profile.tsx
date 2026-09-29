@@ -14,6 +14,9 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import FadeIn from '../../components/FadeIn';
+import appJson from '../../app.json';
 import { useApp } from '../_layout';
 import { Storage } from '../../lib/storage';
 import { toast } from '../../lib/toast';
@@ -122,7 +125,8 @@ export default function Profile() {
   }
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <SafeAreaView style={styles.screen} edges={['top']}>
+    <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
       <Text style={styles.title}>Profile</Text>
       <Text style={styles.meta}>Manage your name, progress, and data</Text>
 
@@ -135,6 +139,7 @@ export default function Profile() {
         </View>
       )}
 
+      <FadeIn delay={0}>
       <View style={styles.card}>
         <Text style={styles.cardLabel}>Your Name</Text>
         <View style={styles.nameRow}>
@@ -161,7 +166,9 @@ export default function Profile() {
         </View>
         {savedNote && <Text style={styles.savedNote}>Saved.</Text>}
       </View>
+      </FadeIn>
 
+      <FadeIn delay={60}>
       <View style={styles.card}>
         <View style={styles.aiCardTitleRow}>
           <Ionicons name="sparkles" size={18} color={colors.primaryStrong} />
@@ -200,7 +207,9 @@ export default function Profile() {
         )}
         {keySavedNote && <Text style={styles.savedNote}>Saved.</Text>}
       </View>
+      </FadeIn>
 
+      <FadeIn delay={120}>
       <View style={styles.statRow}>
         <View style={[styles.card, styles.statCard]}>
           <Ionicons name="bar-chart" size={20} color={colors.primaryStrong} />
@@ -213,12 +222,16 @@ export default function Profile() {
           <Text style={styles.statLabel}>Current Streak</Text>
         </View>
       </View>
+      </FadeIn>
+      <FadeIn delay={180}>
       <View style={styles.card}>
         <Ionicons name="trophy" size={20} color={colors.primaryStrong} />
         <Text style={styles.statValue}>{bestStreak}</Text>
         <Text style={styles.statLabel}>Best Streak</Text>
       </View>
+      </FadeIn>
 
+      <FadeIn delay={240}>
       <View style={[styles.card, styles.dangerCard]}>
         <Text style={styles.dangerTitle}>Reset All Data</Text>
         <Text style={styles.dangerDesc}>
@@ -229,12 +242,20 @@ export default function Profile() {
           <Text style={styles.dangerButtonText}>Reset All Data</Text>
         </TouchableOpacity>
       </View>
+      </FadeIn>
 
+      <FadeIn delay={300}>
       <View style={styles.card}>
-        <Text style={styles.credits}>GymSync for iOS. All data stays on this device.</Text>
-        <Text style={styles.creditsSub}>Ported from the GymSync web app.</Text>
+        <Text style={styles.creditsTitle}>GymSync</Text>
+        <Text style={styles.credits}>Designed and built by p3xz</Text>
+        <Text style={styles.credits}>Powered by React Native, Expo, and Gemini AI</Text>
+        <Text style={styles.credits}>Ported from the GymSync web app</Text>
+        <Text style={styles.credits}>All data stays on this device</Text>
+        <Text style={styles.creditsSub}>Version {appJson.expo.version}</Text>
       </View>
+      </FadeIn>
     </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -242,6 +263,9 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
     padding: spacing.lg,
@@ -277,6 +301,7 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 28,
     fontWeight: '700',
+    marginTop: spacing.md,
   },
   meta: {
     color: colors.textSecondary,
@@ -397,10 +422,18 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
   },
+  creditsTitle: {
+    color: colors.text,
+    fontSize: 18,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: spacing.xs,
+  },
   credits: {
     color: colors.textSecondary,
     fontSize: 13,
     textAlign: 'center',
+    marginBottom: 2,
   },
   creditsSub: {
     color: colors.textTertiary,

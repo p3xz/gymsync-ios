@@ -14,6 +14,8 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import FadeIn from '../../components/FadeIn';
 import { Storage } from '../../lib/storage';
 import { colors, radius, spacing } from '../../lib/theme';
 import type { HistoryEntry } from '../../lib/workout';
@@ -63,13 +65,14 @@ export default function History() {
   }
 
   return (
-    <ScrollView
-      style={styles.screen}
-      contentContainerStyle={styles.content}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={() => void onRefresh()}
+    <SafeAreaView style={styles.screen} edges={['top']}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => void onRefresh()}
           tintColor={colors.primaryStrong}
         />
       }
@@ -88,31 +91,36 @@ export default function History() {
         </View>
       )}
 
-      <View style={styles.statRow}>
-        <View style={[styles.card, styles.statCard]}>
-          <Ionicons name="bar-chart" size={20} color={colors.primaryStrong} />
-          <Text style={styles.statValue}>{history.length}</Text>
-          <Text style={styles.statLabel}>Total Workouts</Text>
+      <FadeIn delay={0}>
+        <View style={styles.statRow}>
+          <View style={[styles.card, styles.statCard]}>
+            <Ionicons name="bar-chart" size={20} color={colors.primaryStrong} />
+            <Text style={styles.statValue}>{history.length}</Text>
+            <Text style={styles.statLabel}>Total Workouts</Text>
+          </View>
+          <View style={[styles.card, styles.statCard]}>
+            <Ionicons name="flame" size={20} color={colors.primaryStrong} />
+            <Text style={styles.statValue}>{streak}</Text>
+            <Text style={styles.statLabel}>Day Streak</Text>
+          </View>
         </View>
-        <View style={[styles.card, styles.statCard]}>
-          <Ionicons name="flame" size={20} color={colors.primaryStrong} />
-          <Text style={styles.statValue}>{streak}</Text>
-          <Text style={styles.statLabel}>Day Streak</Text>
-        </View>
-      </View>
+      </FadeIn>
 
       {history.length === 0 ? (
-        <View style={styles.card}>
-          <Text style={styles.emptyTitle}>No workouts logged yet</Text>
-          <Text style={styles.emptySub}>
-            Finish a workout and it will show up here with all your sets and notes.
-          </Text>
-        </View>
+        <FadeIn delay={60}>
+          <View style={styles.card}>
+            <Text style={styles.emptyTitle}>No workouts logged yet</Text>
+            <Text style={styles.emptySub}>
+              Finish a workout and it will show up here with all your sets and notes.
+            </Text>
+          </View>
+        </FadeIn>
       ) : (
-        history.map((entry) => {
+        history.map((entry, index) => {
         const expanded = expandedId === entry.id;
         return (
-          <View key={entry.id} style={styles.card}>
+          <FadeIn key={entry.id} delay={Math.min(index, 8) * 60}>
+          <View style={styles.card}>
             <TouchableOpacity
               style={styles.entryHeader}
               onPress={() => setExpandedId(expanded ? null : entry.id)}
@@ -159,10 +167,12 @@ export default function History() {
               </View>
             )}
           </View>
+          </FadeIn>
         );
       })
       )}
     </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -170,6 +180,9 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
     padding: spacing.lg,
@@ -180,6 +193,7 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 28,
     fontWeight: '700',
+    marginTop: spacing.md,
   },
   meta: {
     color: colors.textSecondary,

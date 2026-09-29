@@ -22,6 +22,8 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import FadeIn from '../../components/FadeIn';
 import { colors, radius, spacing } from '../../lib/theme';
 import { toast } from '../../lib/toast';
 import { impactMedium, notifyError, notifySuccess } from '../../lib/haptics';
@@ -274,8 +276,9 @@ export default function Routines() {
   }
 
   return (
-    <View style={styles.screen}>
+    <SafeAreaView style={styles.screen} edges={['top']}>
       <ScrollView
+        style={styles.scroll}
         contentContainerStyle={styles.content}
         refreshControl={
           <RefreshControl
@@ -298,22 +301,24 @@ export default function Routines() {
 
         {/* Weekly schedule */}
         <Text style={styles.sectionLabel}>Weekly Schedule</Text>
-        <View style={styles.card}>
-          {schedule.map((plan, dayIndex) => (
-            <TouchableOpacity
-              key={dayIndex}
-              style={[styles.dayRow, dayIndex < 6 && styles.dayRowBorder]}
-              onPress={() => setPickerDay(dayIndex)}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.dayName}>{WEEKDAY_NAMES[dayIndex]}</Text>
-              <View style={styles.dayPlan}>
-                <Text style={styles.dayPlanText}>{dayPlanLabel(plan, routines)}</Text>
-                <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
-              </View>
-            </TouchableOpacity>
-          ))}
-        </View>
+        <FadeIn delay={0}>
+          <View style={styles.card}>
+            {schedule.map((plan, dayIndex) => (
+              <TouchableOpacity
+                key={dayIndex}
+                style={[styles.dayRow, dayIndex < 6 && styles.dayRowBorder]}
+                onPress={() => setPickerDay(dayIndex)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.dayName}>{WEEKDAY_NAMES[dayIndex]}</Text>
+                <View style={styles.dayPlan}>
+                  <Text style={styles.dayPlanText}>{dayPlanLabel(plan, routines)}</Text>
+                  <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </FadeIn>
 
         {/* Custom routines */}
         <View style={styles.sectionHeader}>
@@ -331,14 +336,17 @@ export default function Routines() {
         </View>
 
         {routines.length === 0 ? (
-          <View style={styles.card}>
-            <Text style={styles.muted}>
-              No custom routines yet. Create one and assign it to any weekday above.
-            </Text>
-          </View>
+          <FadeIn delay={60}>
+            <View style={styles.card}>
+              <Text style={styles.muted}>
+                No custom routines yet. Create one and assign it to any weekday above.
+              </Text>
+            </View>
+          </FadeIn>
         ) : (
-          routines.map((routine) => (
-            <View key={routine.id} style={styles.card}>
+          routines.map((routine, index) => (
+            <FadeIn key={routine.id} delay={60 + Math.min(index, 8) * 60}>
+            <View style={styles.card}>
               <View style={styles.routineTop}>
                 <View style={styles.routineInfo}>
                   <Text style={styles.routineName}>{routine.name}</Text>
@@ -362,6 +370,7 @@ export default function Routines() {
                 </Text>
               ))}
             </View>
+            </FadeIn>
           ))
         )}
       </ScrollView>
@@ -542,7 +551,7 @@ export default function Routines() {
           </KeyboardAvoidingView>
         </TouchableWithoutFeedback>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -550,6 +559,9 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  scroll: {
+    flex: 1,
   },
   centered: {
     flex: 1,
@@ -585,6 +597,7 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 28,
     fontWeight: '700',
+    marginTop: spacing.md,
     marginBottom: spacing.xs,
   },
   sectionLabel: {

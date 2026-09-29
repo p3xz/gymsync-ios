@@ -8,10 +8,12 @@
 // restores the session and resumes the timer from the original start time.
 
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Animated,
+  Easing,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -24,6 +26,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, radius, spacing } from '../../lib/theme';
 import { Storage } from '../../lib/storage';
 import { toast } from '../../lib/toast';
@@ -62,6 +65,75 @@ interface PersistedSession {
 }
 
 const SESSION_KEY = 'inProgressWorkout';
+
+/** Checkbox that springs (scale 1 -> 1.3 -> 1) on toggle. A separate component
+ *  so each row animates independently without re-rendering siblings. */
+function CheckButton({
+  completed,
+  onToggle,
+  label,
+}: {
+  completed: boolean;
+  onToggle: () => void;
+  label: string;
+}) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const prevCompleted = useRef(completed);
+
+  useEffect(() => {
+    if (completed !== prevCompleted.current) {
+      prevCompleted.current = completed;
+      Animated.sequence([
+        Animated.timing(scale, {
+          toValue: 1.3,
+          duration: 150,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(scale, {
+          toValue: 1,
+          duration: 150,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [completed]);
+
+  return (
+    <Animated.View style={{ transform: [{ scale }] }}>
+      <TouchableOpacity
+        style={[styles.checkbox, completed && styles.checkboxChecked]}
+        onPress={onToggle}
+        accessibilityLabel={label}
+        activeOpacity={0.7}
+      >
+        {completed && <Ionicons name="checkmark" size={20} color="#ffffff" />}
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
+/** Springs the workout summary card in when the modal appears. */
+function ScaleIn({ children }: { children: ReactNode }) {
+  const scale = useRef(new Animated.Value(0.9)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.spring(scale, { toValue: 1, useNativeDriver: true, tension: 140, friction: 12 }),
+      Animated.timing(opacity, { toValue: 1, duration: 150, useNativeDriver: true }),
+    ]).start();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <Animated.View style={[styles.modalCard, { opacity, transform: [{ scale }] }]}>
+      {children}
+    </Animated.View>
+  );
+}
 
 export default function Workout() {
   const router = useRouter();
@@ -203,6 +275,22 @@ export default function Workout() {
   const completedCount = exercises.filter((ex) => ex.completed).length;
   const progress = exercises.length === 0 ? 0 : completedCount / exercises.length;
 
+  // Animated progress bar: eases to the new value over 250ms instead of jumping.
+  const progressAnim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(progressAnim, {
+      toValue: progress,
+      duration: 250,
+      easing: Easing.ease,
+      useNativeDriver: false,
+    }).start();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [progress]);
+  const progressWidth = progressAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0%', '100%'],
+  });
+
   const finishWorkout = async () => {
     if (!workout || finishing) return;
     setFinishing(true);
@@ -264,28 +352,29 @@ export default function Workout() {
 
   if (!workout) {
     return (
-      <View style={styles.centered}>
+      <SafeAreaView style={styles.centered} edges={['top']}>
         <ActivityIndicator size="large" color={colors.primaryStrong} />
-      </View>
+      </SafeAreaView>
     );
   }
 
   if (workout.isRest) {
     return (
-      <View style={styles.centered}>
+      <SafeAreaView style={styles.centered} edges={['top']}>
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Rest Day</Text>
           <Text style={styles.muted}>Nothing scheduled today. Recovery is part of the process.</Text>
         </View>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.screen}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <SafeAreaView style={styles.screen} edges={['top']}>
+      <KeyboardAvoidingView
+        style={styles.scroll}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
           <View>
@@ -301,7 +390,7 @@ export default function Workout() {
         </View>
 
         <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: `${Math.round(progress * 100)}%` }]} />
+          <Animated.View style={[styles.progressFill, { width: progressWidth }]} />
         </View>
         <Text style={styles.progressLabel}>
           {completedCount} of {exercises.length} exercises completed
@@ -323,14 +412,11 @@ export default function Workout() {
                   {ex.def.targetSets} sets x {ex.def.targetReps} reps
                 </Text>
               </View>
-              <TouchableOpacity
-                style={[styles.checkbox, ex.completed && styles.checkboxChecked]}
-                onPress={() => toggleExercise(index)}
-                accessibilityLabel={`Mark ${ex.def.name} complete`}
-                activeOpacity={0.7}
-              >
-                {ex.completed && <Ionicons name="checkmark" size={20} color="#ffffff" />}
-              </TouchableOpacity>
+              <CheckButton
+                completed={ex.completed}
+                onToggle={() => toggleExercise(index)}
+                label={`Mark ${ex.def.name} complete`}
+              />
             </View>
             <View style={styles.inputRow}>
               <View style={styles.inputWrap}>
@@ -372,7 +458,7 @@ export default function Workout() {
       {/* Summary sheet after finishing, like the web app's overlay. */}
       <Modal visible={summary !== null} transparent animationType="fade">
         <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
+          <ScaleIn>
             <Text style={styles.modalTitle}>Workout Complete</Text>
             <Text style={styles.modalSubtitle}>{summary?.title}</Text>
             <View style={styles.summaryRow}>
@@ -412,10 +498,11 @@ export default function Workout() {
                 <Text style={styles.startButtonText}>Done</Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </ScaleIn>
         </View>
       </Modal>
     </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
@@ -423,6 +510,9 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
     padding: spacing.lg,
@@ -457,6 +547,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginTop: spacing.md,
   },
   headerLabel: {
     color: colors.textSecondary,

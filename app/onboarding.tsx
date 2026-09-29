@@ -4,6 +4,7 @@
 
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useApp } from './_layout';
 import { colors, radius, spacing } from '../lib/theme';
 
@@ -17,6 +18,7 @@ export default function Onboarding() {
   };
 
   return (
+    <SafeAreaView style={styles.safe} edges={['top']}>
     <KeyboardAvoidingView
       style={styles.screen}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -49,13 +51,17 @@ export default function Onboarding() {
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
+  safe: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  screen: {
+    flex: 1,
     justifyContent: 'center',
     padding: spacing.lg,
   },
