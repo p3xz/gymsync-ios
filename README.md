@@ -24,6 +24,10 @@ TypeScript, and expo-router. Dark theme, on-device storage, no backend.
 - **Polish** - safe-area support for notched iPhones and the Dynamic Island,
   pull to refresh, toast feedback, haptics, loading and error states, and
   subtle entrance animations throughout.
+- **Dynamic Island (iOS)** - starting a workout shows a Live Activity in the
+  Dynamic Island and on the Lock Screen: live timer plus exercise progress
+  (e.g. PUSH, 12:34, 3/6). Updates as you check off exercises, ends when you
+  finish. Needs an iPhone with iOS 16.1 or later.
 
 All data is stored on-device with AsyncStorage under the `gymsync:` key prefix,
 mirroring the web app's localStorage keys.

@@ -33,6 +33,11 @@ import { toast } from '../../lib/toast';
 import { impactLight, notifySuccess } from '../../lib/haptics';
 import { keepAwakeOff, keepAwakeOn } from '../../lib/keepAwake';
 import {
+  endWorkoutIsland,
+  startWorkoutIsland,
+  updateWorkoutIsland,
+} from '../../lib/liveActivity';
+import {
   formatElapsed,
   getTodaysWorkout,
   persistFinishedWorkout,
@@ -189,6 +194,7 @@ export default function Workout() {
       writeSession(fresh);
       void keepAwakeOn();
       startTicking();
+      void startWorkoutIsland(resolved.title, fresh.length, start);
     },
     [startTicking]
   );
@@ -210,6 +216,12 @@ export default function Workout() {
       setLoggedToday(false);
       void keepAwakeOn();
       startTicking();
+      void startWorkoutIsland(
+        stored.title,
+        stored.exercises.length,
+        stored.startedAt,
+        stored.exercises.filter((ex) => ex.completed).length
+      );
     },
     [startTicking]
   );
@@ -264,6 +276,11 @@ export default function Workout() {
     setExercises(next);
     writeSession(next);
     void impactLight();
+    void updateWorkoutIsland(
+      next.filter((ex) => ex.completed).length,
+      next.length,
+      startTimeRef.current
+    );
   };
 
   const updateField = (index: number, field: 'weight' | 'notes', value: string) => {
@@ -312,10 +329,12 @@ export default function Workout() {
       exerciseData,
     });
 
-    // Session is done: clear the persisted copy and release the wake lock.
+    // Session is done: clear the persisted copy, release the wake lock,
+    // and dismiss the Dynamic Island activity.
     sessionRef.current = null;
     await Storage.remove(SESSION_KEY);
     await keepAwakeOff();
+    void endWorkoutIsland();
     void notifySuccess();
     toast('Workout saved to history');
 

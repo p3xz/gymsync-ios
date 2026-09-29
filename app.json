@@ -9,7 +9,12 @@
     "userInterfaceStyle": "dark",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.p3xz.gymsync"
+      "bundleIdentifier": "com.p3xz.gymsync",
+      "entitlements": {
+        "com.apple.security.application-groups": [
+          "group.com.p3xz.gymsync"
+        ]
+      }
     },
     "android": {
       "package": "com.p3xz.gymsync",
@@ -35,7 +40,8 @@
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
-      ]
+      ],
+      "expo-targets"
     ],
     "experiments": {
       "typedRoutes": true

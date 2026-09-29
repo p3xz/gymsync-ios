@@ -1,0 +1,23 @@
+{
+  "displayName": "GymSync Workout",
+  "ios": {
+    "deploymentTarget": "16.1",
+    "liveActivity": {
+      "attributesName": "GymWidgetsAttributes",
+      "contentState": {
+        "completed": "double",
+        "startedAt": "double",
+        "total": "double"
+      },
+      "static": {
+        "title": "string"
+      }
+    }
+  },
+  "name": "GymWidgets",
+  "platforms": [
+    "ios"
+  ],
+  "type": "widget",
+  "appGroup": "group.com.p3xz.gymsync"
+}
