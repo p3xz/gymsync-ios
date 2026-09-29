@@ -1,0 +1,112 @@
+# Builds GymSync installables on every push to main.
+#
+# Job 1 - build-android (ubuntu-latest):
+#   Builds the Android APK with EAS in the cloud and uploads it as the
+#   `gymsync-apk` artifact. Needs the EXPO_TOKEN repo secret only.
+#
+# Job 2 - build-ios-unsigned (macos-latest):
+#   Builds an UNSIGNED iOS .ipa with xcodebuild and uploads it as the
+#   `gymsync-unsigned-ipa` artifact. No Apple Developer account, no
+#   certificates, no EXPO_TOKEN needed for this job: the app is compiled
+#   with code signing disabled (CODE_SIGNING_ALLOWED=NO), so Apple never
+#   enters the picture at build time.
+#
+#   An unsigned IPA cannot be installed directly on an iPhone. To get it
+#   on a real device, sideload it with Sideloadly (Windows/macOS) or
+#   AltStore, signing with a FREE Apple ID on your own computer. Free
+#   Apple IDs get 7-day provisioning profiles, so the app must be
+#   re-signed weekly. No $99/year Developer Program required.
+
+name: Mobile builds
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install EAS CLI
+        run: npm install -g eas-cli
+
+      - name: Build Android APK with EAS
+        run: eas build --platform android --profile preview --non-interactive --output ./gymsync.apk
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gymsync-apk
+          path: gymsync.apk
+          if-no-files-found: error
+
+  build-ios-unsigned:
+    runs-on: macos-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate native iOS project
+        # expo prebuild creates ios/ from app.json (Continuous Native
+        # Generation). No Expo login or Apple credentials required.
+        run: npx expo prebuild --platform ios --non-interactive
+
+      - name: Install CocoaPods dependencies
+        run: cd ios && pod install
+
+      - name: Select newest Xcode
+        run: |
+          XCODE=$(ls -d /Applications/Xcode*.app | sort | tail -n 1)
+          echo "Using $XCODE"
+          sudo xcode-select -s "$XCODE"
+
+      - name: Build unsigned .app with xcodebuild
+        # CODE_SIGNING_ALLOWED=NO compiles without any signing identity,
+        # so this works with zero Apple credentials on the runner.
+        run: |
+          xcodebuild \
+            -workspace ios/GymSync.xcworkspace \
+            -scheme GymSync \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath ./ios-build \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Package unsigned IPA
+        run: |
+          mkdir -p Payload
+          cp -R ./ios-build/Build/Products/Release-iphoneos/GymSync.app Payload/
+          zip -r gymsync-unsigned.ipa Payload
+
+      - name: Upload unsigned IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gymsync-unsigned-ipa
+          path: gymsync-unsigned.ipa
+          if-no-files-found: error

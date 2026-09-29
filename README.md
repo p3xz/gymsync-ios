@@ -71,15 +71,25 @@ In the GitHub repo: Settings > Secrets and variables > Actions > New repository 
 That is the only secret the APK build needs. No Apple or Google Play
 credentials are involved.
 
-## iOS (stub)
+## iOS: unsigned IPA (no paid Apple account needed)
 
-`eas.json` still carries iOS build profiles (`preview` targets the simulator,
-`production` is a release build), but no workflow builds them automatically.
-Apple requires a paid **Apple Developer Program** membership ($99/year) to
-install on a physical iPhone or distribute via TestFlight. If you ever want
-that: add your Apple credentials with `eas credentials`, fill in the real
-values in the `submit.production.ios` section of `eas.json`, and add a macOS
-workflow job.
+Every push also builds an **unsigned IPA** on a macOS runner with plain
+`xcodebuild` (code signing disabled), uploaded as the `gymsync-unsigned-ipa`
+artifact. This job needs no secrets at all: no `EXPO_TOKEN`, no Apple ID, no
+certificates.
+
+An unsigned IPA cannot be installed directly. To get it on your iPhone,
+sideload it from your own computer with a **free** Apple ID:
+
+1. Download `gymsync-unsigned-ipa` from the Actions run artifacts.
+2. Install [Sideloadly](https://sideloadly.io) (Windows/macOS) or AltStore.
+3. Plug in your iPhone, drag the IPA into Sideloadly, enter your free Apple ID.
+4. On the iPhone: Settings > General > VPN & Device Management > trust your
+   Apple ID, then open GymSync.
+
+Free Apple IDs get 7-day provisioning profiles, so re-sideload weekly. The
+paid Apple Developer Program ($99/year) is only needed for TestFlight/App
+Store distribution; `eas.json` keeps a release profile stub for that future.
 
 ## Project layout
 
@@ -100,7 +110,7 @@ lib/
   workout.ts         Splits, exercises, quotes, schedule logic, streak math
 eas.json             EAS build profiles (development / preview / production)
 .github/workflows/
-  android-build.yml  EAS Android APK build on ubuntu-latest, on push to main
+  mobile-build.yml   Android APK (EAS, ubuntu) + unsigned iOS IPA (xcodebuild, macOS), on push to main
 ```
 
 ## Notes
