@@ -1,7 +1,7 @@
 {
   "displayName": "GymSync Workout",
   "ios": {
-    "deploymentTarget": "16.1",
+    "deploymentTarget": "16.2",
     "liveActivity": {
       "attributesName": "GymWidgetsAttributes",
       "contentState": {
