@@ -71,6 +71,54 @@ interface PersistedSession {
 
 const SESSION_KEY = 'inProgressWorkout';
 
+/** Maps a Live Activity failure to something the user can act on. */
+function friendlyIslandError(reason: string | null): string {
+  if (reason?.includes('disabled in iOS Settings')) {
+    return 'Live Activities are off: Settings > Face ID & Passcode > Live Activities.';
+  }
+  if (reason?.includes('bridge')) {
+    return 'Workout island failed to start. Reinstall the app and try again.';
+  }
+  return 'Live Activity could not start on this iPhone.';
+}
+
+/**
+ * Starts the Dynamic Island activity and tells the user when it fails,
+ * instead of leaving an empty island with no explanation. A few seconds
+ * after a successful start, verifies iOS didn't kill the activity
+ * immediately; if it did and it can't come back, say so.
+ */
+async function startIslandWithFeedback(
+  title: string,
+  total: number,
+  startedAtMs: number,
+  completed: number,
+  isStillActive: () => boolean
+): Promise<void> {
+  try {
+    const res = await startWorkoutIsland(title, total, startedAtMs, completed);
+    if (!res.ok) {
+      if (res.reason) toast(friendlyIslandError(res.reason));
+      return;
+    }
+    setTimeout(async () => {
+      if (!isStillActive()) return;
+      try {
+        const alive = await updateWorkoutIsland(completed, total, startedAtMs);
+        if (!alive) {
+          toast(
+            'iOS dismissed the workout island. Check Settings > Face ID & Passcode > Live Activities.'
+          );
+        }
+      } catch {
+        // The workout never depends on the island.
+      }
+    }, 3000);
+  } catch {
+    // The workout never depends on the island.
+  }
+}
+
 /** Checkbox that springs (scale 1 -> 1.3 -> 1) on toggle. A separate component
  *  so each row animates independently without re-rendering siblings. */
 function CheckButton({
@@ -194,7 +242,13 @@ export default function Workout() {
       writeSession(fresh);
       void keepAwakeOn();
       startTicking();
-      void startWorkoutIsland(resolved.title, fresh.length, start);
+      void startIslandWithFeedback(
+        resolved.title,
+        fresh.length,
+        start,
+        0,
+        () => sessionRef.current?.startedAt === start
+      );
     },
     [startTicking]
   );
@@ -216,11 +270,13 @@ export default function Workout() {
       setLoggedToday(false);
       void keepAwakeOn();
       startTicking();
-      void startWorkoutIsland(
+      const doneCount = stored.exercises.filter((ex) => ex.completed).length;
+      void startIslandWithFeedback(
         stored.title,
         stored.exercises.length,
         stored.startedAt,
-        stored.exercises.filter((ex) => ex.completed).length
+        doneCount,
+        () => sessionRef.current?.startedAt === stored.startedAt
       );
     },
     [startTicking]

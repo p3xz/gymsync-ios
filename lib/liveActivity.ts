@@ -8,12 +8,15 @@
 //
 // The island renders its own ticking timer from `startedAt` (epoch seconds),
 // so the app only pushes updates when exercise progress changes. If iOS
-// dismisses the activity mid-workout, the next progress update restarts it.
+// dismisses the activity mid-workout, the next progress update restarts it,
+// with a circuit breaker so a throttling system never gets hammered.
 
 import { Platform } from 'react-native';
 import type { LiveActivityHandle } from 'expo-targets';
 
 type IslandHandle = LiveActivityHandle<'GymWidgetsAttributes'>;
+
+export type IslandResult = { ok: boolean; reason: string | null };
 
 let handle: IslandHandle | null = null;
 let handleBroken = false;
@@ -21,6 +24,21 @@ let activeId: string | null = null;
 let lastStart: { title: string; total: number; startedAtMs: number } | null =
   null;
 let lastError: string | null = null;
+
+// iOS throttles apps that start/end activities in a tight loop; never feed it.
+const restartTimestamps: number[] = [];
+const MAX_RESTARTS_PER_MINUTE = 3;
+
+function canRestart(): boolean {
+  const now = Date.now();
+  while (
+    restartTimestamps.length > 0 &&
+    now - restartTimestamps[0] > 60_000
+  ) {
+    restartTimestamps.shift();
+  }
+  return restartTimestamps.length < MAX_RESTARTS_PER_MINUTE;
+}
 
 function noteError(where: string, err: unknown): void {
   const msg = err instanceof Error ? err.message : String(err);
@@ -56,10 +74,10 @@ export async function startWorkoutIsland(
   total: number,
   startedAtMs: number,
   completed = 0
-): Promise<void> {
+): Promise<IslandResult> {
   try {
     const island = await getHandle();
-    if (!island) return;
+    if (!island) return { ok: false, reason: lastError };
     lastStart = { title, total, startedAtMs };
     if (activeId) {
       try {
@@ -73,40 +91,49 @@ export async function startWorkoutIsland(
       attributes: { title },
       contentState: { startedAt: startedAtMs / 1000, completed, total },
     });
+    lastError = null;
+    return { ok: true, reason: null };
   } catch (err) {
     noteError('start', err);
+    return { ok: false, reason: lastError };
   }
 }
 
 /**
  * Push progress to the island. The timer ticks on-device; no per-second pushes.
- * If the activity is gone (dismissed by iOS, or the start raced), restart it
- * from the last known session so the island comes back on the next rep.
+ * Returns true when an activity is live afterwards. If the activity is gone
+ * (dismissed by iOS, or the start raced), restarts it from the last known
+ * session so the island comes back on the next rep.
  */
 export async function updateWorkoutIsland(
   completed: number,
   total: number,
   startedAtMs: number
-): Promise<void> {
+): Promise<boolean> {
   try {
     const island = await getHandle();
-    if (!island || !activeId) return;
+    if (!island || !activeId) return false;
     const alive = await island.update(activeId, {
       startedAt: startedAtMs / 1000,
       completed,
       total,
     });
-    if (!alive && lastStart) {
+    if (alive) return true;
+    if (lastStart && canRestart()) {
+      restartTimestamps.push(Date.now());
       activeId = null;
-      await startWorkoutIsland(
+      const res = await startWorkoutIsland(
         lastStart.title,
         lastStart.total,
         lastStart.startedAtMs,
         completed
       );
+      return res.ok;
     }
+    return false;
   } catch (err) {
     noteError('update', err);
+    return false;
   }
 }
 
