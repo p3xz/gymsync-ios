@@ -16,14 +16,25 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import FadeIn from '../../components/FadeIn';
+import BarChart from '../../components/BarChart';
 import { Storage } from '../../lib/storage';
 import { colors, radius, spacing } from '../../lib/theme';
+import {
+  exercisesWithWeights,
+  weeklyBestForExercise,
+  weeklyVolume,
+  type WeekPoint,
+} from '../../lib/charts';
 import type { HistoryEntry } from '../../lib/workout';
 
 export default function History() {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [streak, setStreak] = useState(0);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [volume, setVolume] = useState<WeekPoint[]>([]);
+  const [trendNames, setTrendNames] = useState<string[]>([]);
+  const [trendExercise, setTrendExercise] = useState<string | null>(null);
+  const [trend, setTrend] = useState<WeekPoint[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -36,6 +47,12 @@ export default function History() {
       ]);
       setHistory(h);
       setStreak(s);
+      setVolume(weeklyVolume(h));
+      const names = exercisesWithWeights(h);
+      setTrendNames(names);
+      const picked = trendExercise && names.includes(trendExercise) ? trendExercise : (names[0] ?? null);
+      setTrendExercise(picked);
+      setTrend(picked ? weeklyBestForExercise(h, picked) : []);
       setLoadError(false);
     } catch {
       setLoadError(true);
@@ -55,6 +72,11 @@ export default function History() {
     await reload();
     setRefreshing(false);
   }, [reload]);
+
+  const selectTrendExercise = (name: string) => {
+    setTrendExercise(name);
+    setTrend(weeklyBestForExercise(history, name));
+  };
 
   if (initialLoading) {
     return (
@@ -105,6 +127,48 @@ export default function History() {
           </View>
         </View>
       </FadeIn>
+
+      {history.length > 0 && (
+        <FadeIn delay={60}>
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Weekly Volume</Text>
+            <Text style={styles.sectionSub}>Total kg lifted per week, last 8 weeks</Text>
+            <BarChart
+              points={volume.map((p) => ({ key: p.weekStartKey, label: p.label, value: p.value }))}
+            />
+          </View>
+        </FadeIn>
+      )}
+
+      {trendNames.length > 0 && (
+        <FadeIn delay={120}>
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Strength Trend</Text>
+            <Text style={styles.sectionSub}>Best weight per week</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.chipRow}
+            >
+              {trendNames.map((name) => (
+                <TouchableOpacity
+                  key={name}
+                  style={[styles.chip, trendExercise === name && styles.chipActive]}
+                  onPress={() => selectTrendExercise(name)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.chipText, trendExercise === name && styles.chipTextActive]}>
+                    {name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <BarChart
+              points={trend.map((p) => ({ key: p.weekStartKey, label: p.label, value: p.value }))}
+            />
+          </View>
+        </FadeIn>
+      )}
 
       {history.length === 0 ? (
         <FadeIn delay={60}>
@@ -258,6 +322,40 @@ const styles = StyleSheet.create({
   statLabel: {
     color: colors.textSecondary,
     fontSize: 13,
+  },
+  sectionTitle: {
+    color: colors.text,
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  sectionSub: {
+    color: colors.textTertiary,
+    fontSize: 13,
+    marginTop: 2,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingVertical: spacing.sm,
+  },
+  chip: {
+    borderColor: colors.borderStrong,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+  },
+  chipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  chipText: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  chipTextActive: {
+    color: '#ffffff',
   },
   entryHeader: {
     flexDirection: 'row',
