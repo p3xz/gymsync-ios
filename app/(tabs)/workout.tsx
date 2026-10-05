@@ -32,6 +32,7 @@ import { Storage } from '../../lib/storage';
 import { toast } from '../../lib/toast';
 import { impactLight, notifySuccess } from '../../lib/haptics';
 import { keepAwakeOff, keepAwakeOn } from '../../lib/keepAwake';
+import RestTimer from '../../components/RestTimer';
 import {
   endWorkoutIsland,
   startWorkoutIsland,
@@ -197,6 +198,9 @@ export default function Workout() {
   const [loggedToday, setLoggedToday] = useState(false);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [finishing, setFinishing] = useState(false);
+  const [restVisible, setRestVisible] = useState(false);
+  const [restSecs, setRestSecs] = useState(60);
+  const [restAuto, setRestAuto] = useState(true);
   const startTimeRef = useRef<number>(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // Non-reactive mirror used by event handlers to persist without stale closures.
@@ -291,8 +295,14 @@ export default function Workout() {
       (async () => {
         const todayKey = toDateKey(new Date());
         if (todayKey === sessionDateKey) return; // resume, do not reset
-        const resolved = await getTodaysWorkout();
+        const [resolved, storedRestSecs, storedRestAuto] = await Promise.all([
+          getTodaysWorkout(),
+          Storage.get<number>('restTimerSecs', 60),
+          Storage.get<boolean>('restTimerAuto', true),
+        ]);
         if (cancelled) return;
+        setRestSecs(storedRestSecs);
+        setRestAuto(storedRestAuto);
         setWorkout(resolved);
         if (resolved.isRest) {
           // Rest days never hold a session; drop anything stale.
@@ -326,12 +336,15 @@ export default function Workout() {
   );
 
   const toggleExercise = (index: number) => {
+    const wasCompleted = exercises[index].completed;
     const next = exercises.map((ex, i) =>
       i === index ? { ...ex, completed: !ex.completed } : ex
     );
     setExercises(next);
     writeSession(next);
     void impactLight();
+    // Checking off a set starts the rest timer when auto-rest is on.
+    if (!wasCompleted && restAuto) setRestVisible(true);
     void updateWorkoutIsland(
       next.filter((ex) => ex.completed).length,
       next.length,
@@ -458,9 +471,23 @@ export default function Workout() {
               {workout.title.charAt(0) + workout.title.slice(1).toLowerCase()} Day
             </Text>
           </View>
-          <View style={styles.timer}>
-            <View style={styles.timerDot} />
-            <Text style={styles.timerText}>{formatElapsed(elapsedMs)}</Text>
+          <View style={styles.headerRight}>
+            <TouchableOpacity
+              style={styles.restButton}
+              onPress={() => {
+                void impactLight();
+                setRestVisible(true);
+              }}
+              activeOpacity={0.8}
+              accessibilityLabel="Start rest timer"
+            >
+              <Ionicons name="timer-outline" size={18} color={colors.primaryStrong} />
+              <Text style={styles.restButtonText}>Rest</Text>
+            </TouchableOpacity>
+            <View style={styles.timer}>
+              <View style={styles.timerDot} />
+              <Text style={styles.timerText}>{formatElapsed(elapsedMs)}</Text>
+            </View>
           </View>
         </View>
 
@@ -577,6 +604,12 @@ export default function Workout() {
         </View>
       </Modal>
     </KeyboardAvoidingView>
+
+      <RestTimer
+        visible={restVisible}
+        initialSecs={restSecs}
+        onClose={() => setRestVisible(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -644,6 +677,27 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  restButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  restButtonText: {
+    color: colors.primaryStrong,
+    fontSize: 14,
+    fontWeight: '600',
   },
   timerDot: {
     width: 8,

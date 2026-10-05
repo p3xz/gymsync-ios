@@ -20,7 +20,9 @@ import appJson from '../../app.json';
 import { useApp } from '../_layout';
 import { Storage } from '../../lib/storage';
 import { toast } from '../../lib/toast';
+import { impactLight } from '../../lib/haptics';
 import { clearGeminiKey, getGeminiKey, saveGeminiKey } from '../../lib/gemini';
+import { REST_PRESETS } from '../../components/RestTimer';
 import { colors, radius, spacing } from '../../lib/theme';
 import type { HistoryEntry } from '../../lib/workout';
 
@@ -34,22 +36,28 @@ export default function Profile() {
   const [apiKey, setApiKey] = useState('');
   const [hasKey, setHasKey] = useState(false);
   const [keySavedNote, setKeySavedNote] = useState(false);
+  const [restSecs, setRestSecs] = useState(60);
+  const [restAuto, setRestAuto] = useState(true);
   const [initialLoading, setInitialLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
 
   const reload = useCallback(async () => {
     try {
-      const [h, s, b, key] = await Promise.all([
+      const [h, s, b, key, rs, ra] = await Promise.all([
         Storage.get<HistoryEntry[]>('workoutHistory', []),
         Storage.get<number>('streak', 0),
         Storage.get<number>('bestStreak', 0),
         getGeminiKey(),
+        Storage.get<number>('restTimerSecs', 60),
+        Storage.get<boolean>('restTimerAuto', true),
       ]);
       setTotalWorkouts(h.length);
       setStreak(s);
       setBestStreak(b);
       setHasKey(key.length > 0);
       if (!key) setApiKey('');
+      setRestSecs(rs);
+      setRestAuto(ra);
       setLoadError(false);
     } catch {
       setLoadError(true);
@@ -206,6 +214,49 @@ export default function Profile() {
           </View>
         )}
         {keySavedNote && <Text style={styles.savedNote}>Saved.</Text>}
+      </View>
+      </FadeIn>
+
+      <FadeIn delay={90}>
+      <View style={styles.card}>
+        <View style={styles.aiCardTitleRow}>
+          <Ionicons name="timer-outline" size={18} color={colors.primaryStrong} />
+          <Text style={styles.cardLabel}>Rest Timer</Text>
+        </View>
+        <Text style={styles.hint}>Countdown between sets on the Workout tab.</Text>
+        <View style={styles.presetRow}>
+          {REST_PRESETS.map((secs) => (
+            <TouchableOpacity
+              key={secs}
+              style={[styles.presetChip, restSecs === secs && styles.presetChipActive]}
+              onPress={() => {
+                void impactLight();
+                setRestSecs(secs);
+                void Storage.set('restTimerSecs', secs);
+              }}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.presetChipText, restSecs === secs && styles.presetChipTextActive]}>
+                {secs}s
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <TouchableOpacity
+          style={styles.toggleRow}
+          onPress={() => {
+            void impactLight();
+            const next = !restAuto;
+            setRestAuto(next);
+            void Storage.set('restTimerAuto', next);
+          }}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.toggleLabel}>Auto-start after each set</Text>
+          <View style={[styles.toggle, restAuto && styles.toggleOn]}>
+            <View style={[styles.toggleKnob, restAuto && styles.toggleKnobOn]} />
+          </View>
+        </TouchableOpacity>
       </View>
       </FadeIn>
 
@@ -440,5 +491,63 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: 'center',
     marginTop: 2,
+  },
+  presetRow: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  presetChip: {
+    borderColor: colors.borderStrong,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  presetChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  presetChipText: {
+    color: colors.textSecondary,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  presetChipTextActive: {
+    color: '#ffffff',
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: spacing.xs,
+  },
+  toggleLabel: {
+    color: colors.text,
+    fontSize: 15,
+  },
+  toggle: {
+    width: 48,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.elevated,
+    borderColor: colors.borderStrong,
+    borderWidth: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  toggleOn: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  toggleKnob: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: colors.textTertiary,
+  },
+  toggleKnobOn: {
+    backgroundColor: '#ffffff',
+    alignSelf: 'flex-end',
   },
 });
