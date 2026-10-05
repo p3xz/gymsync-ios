@@ -68,7 +68,10 @@ export default function RootLayout() {
         {name === null ? (
           <Stack.Screen name="onboarding" />
         ) : (
-          <Stack.Screen name="(tabs)" />
+          <>
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="plate-calculator" />
+          </>
         )}
       </Stack>
     </AppContext.Provider>

@@ -493,6 +493,14 @@ export default function Workout() {
           <View style={styles.headerRight}>
             <TouchableOpacity
               style={styles.restButton}
+              onPress={() => router.push('/plate-calculator')}
+              activeOpacity={0.8}
+              accessibilityLabel="Open plate calculator"
+            >
+              <Ionicons name="disc-outline" size={18} color={colors.primaryStrong} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.restButton}
               onPress={() => {
                 void impactLight();
                 setRestVisible(true);
