@@ -42,6 +42,12 @@ import {
   type DayPlan,
   type ExerciseDef,
 } from '../../lib/workout';
+import {
+  EXERCISE_LIBRARY,
+  MUSCLE_GROUPS,
+  searchLibrary,
+  type LibraryExercise,
+} from '../../lib/exercises';
 
 interface DraftExercise {
   key: string;
@@ -76,6 +82,11 @@ export default function Routines() {
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiBusy, setAiBusy] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+
+  // Exercise library picker. Null muscle = all groups.
+  const [libraryVisible, setLibraryVisible] = useState(false);
+  const [libraryQuery, setLibraryQuery] = useState('');
+  const [libraryMuscle, setLibraryMuscle] = useState<string | null>(null);
 
   const [initialLoading, setInitialLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -170,6 +181,20 @@ export default function Routines() {
 
   const removeDraftExercise = (key: string) => {
     setDraftExercises((prev) => prev.filter((ex) => ex.key !== key));
+  };
+
+  const addFromLibrary = (exercise: LibraryExercise) => {
+    setDraftExercises((prev) => [
+      ...prev,
+      {
+        key: `lib-${Date.now()}-${prev.length}`,
+        name: exercise.name,
+        sets: '3',
+        reps: '8-12',
+        group: null,
+      },
+    ]);
+    toast(`Added ${exercise.name}`);
   };
 
   const saveRoutine = async () => {
@@ -500,10 +525,24 @@ export default function Routines() {
                   </TouchableOpacity>
                 </View>
               ))}
-              <TouchableOpacity style={styles.addExercise} onPress={addDraftExercise} activeOpacity={0.7}>
-                <Ionicons name="add-circle-outline" size={18} color={colors.primaryStrong} />
-                <Text style={styles.addExerciseText}>Add exercise</Text>
-              </TouchableOpacity>
+              <View style={styles.draftActions}>
+                <TouchableOpacity style={styles.addExercise} onPress={addDraftExercise} activeOpacity={0.7}>
+                  <Ionicons name="add-circle-outline" size={18} color={colors.primaryStrong} />
+                  <Text style={styles.addExerciseText}>Add exercise</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.addExercise}
+                  onPress={() => {
+                    setLibraryQuery('');
+                    setLibraryMuscle(null);
+                    setLibraryVisible(true);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="book-outline" size={18} color={colors.primaryStrong} />
+                  <Text style={styles.addExerciseText}>From library</Text>
+                </TouchableOpacity>
+              </View>
             </ScrollView>
 
             <View style={styles.editorActions}>
@@ -525,6 +564,79 @@ export default function Routines() {
           </View>
           </KeyboardAvoidingView>
         </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* Exercise library picker */}
+      <Modal visible={libraryVisible} transparent animationType="slide">
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalCard, styles.editorCard]}>
+            <View style={styles.libraryHeader}>
+              <Text style={styles.modalTitle}>Exercise Library</Text>
+              <TouchableOpacity onPress={() => setLibraryVisible(false)} hitSlop={12} activeOpacity={0.7}>
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+            <TextInput
+              style={styles.input}
+              value={libraryQuery}
+              onChangeText={setLibraryQuery}
+              placeholder="Search exercises"
+              placeholderTextColor={colors.textTertiary}
+              autoCorrect={false}
+            />
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.libraryChips}
+            >
+              <TouchableOpacity
+                style={[styles.libraryChip, libraryMuscle === null && styles.libraryChipActive]}
+                onPress={() => setLibraryMuscle(null)}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.libraryChipText, libraryMuscle === null && styles.libraryChipTextActive]}>
+                  All
+                </Text>
+              </TouchableOpacity>
+              {MUSCLE_GROUPS.map((m) => (
+                <TouchableOpacity
+                  key={m}
+                  style={[styles.libraryChip, libraryMuscle === m && styles.libraryChipActive]}
+                  onPress={() => setLibraryMuscle(m)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.libraryChipText, libraryMuscle === m && styles.libraryChipTextActive]}>
+                    {m}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <FlatList
+              data={searchLibrary(libraryQuery, libraryMuscle ?? undefined)}
+              keyExtractor={(item) => item.name}
+              keyboardShouldPersistTaps="handled"
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.libraryRow}
+                  onPress={() => addFromLibrary(item)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.libraryInfo}>
+                    <Text style={styles.libraryName}>{item.name}</Text>
+                    <Text style={styles.libraryMuscle}>{item.muscle}</Text>
+                    <Text style={styles.libraryInstructions} numberOfLines={2}>
+                      {item.instructions}
+                    </Text>
+                  </View>
+                  <Ionicons name="add-circle" size={26} color={colors.primaryStrong} />
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={
+                <Text style={styles.muted}>No exercises match your search.</Text>
+              }
+            />
+          </View>
+        </View>
       </Modal>
 
       {/* AI coach: describe what you want, get a routine back */}
@@ -857,6 +969,67 @@ const styles = StyleSheet.create({
     color: colors.textTertiary,
     fontSize: 12,
     marginBottom: spacing.xs,
+  },
+  draftActions: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  libraryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  libraryChips: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingVertical: spacing.sm,
+  },
+  libraryChip: {
+    borderColor: colors.borderStrong,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+  },
+  libraryChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  libraryChipText: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  libraryChipTextActive: {
+    color: '#ffffff',
+  },
+  libraryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    borderBottomColor: colors.border,
+    borderBottomWidth: 1,
+  },
+  libraryInfo: {
+    flex: 1,
+  },
+  libraryName: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  libraryMuscle: {
+    color: colors.primaryStrong,
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  libraryInstructions: {
+    color: colors.textTertiary,
+    fontSize: 13,
+    marginTop: 2,
   },
   disabledButton: {
     opacity: 0.6,
