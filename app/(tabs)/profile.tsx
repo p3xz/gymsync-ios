@@ -25,6 +25,7 @@ import { clearGeminiKey, getGeminiKey, saveGeminiKey } from '../../lib/gemini';
 import { REST_PRESETS } from '../../components/RestTimer';
 import { exportBackup, pickBackupFile, restoreBackup, shareBackupFile } from '../../lib/backup';
 import { computeRecords, type ExerciseRecord } from '../../lib/records';
+import { getWeeklyGoal, setWeeklyGoal } from '../../lib/weeklyGoal';
 import { colors, radius, spacing } from '../../lib/theme';
 import type { HistoryEntry } from '../../lib/workout';
 
@@ -42,18 +43,20 @@ export default function Profile() {
   const [restAuto, setRestAuto] = useState(true);
   const [backupBusy, setBackupBusy] = useState(false);
   const [records, setRecords] = useState<ExerciseRecord[]>([]);
+  const [weeklyGoal, setWeeklyGoalState] = useState(4);
   const [initialLoading, setInitialLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
 
   const reload = useCallback(async () => {
     try {
-      const [h, s, b, key, rs, ra] = await Promise.all([
+      const [h, s, b, key, rs, ra, wg] = await Promise.all([
         Storage.get<HistoryEntry[]>('workoutHistory', []),
         Storage.get<number>('streak', 0),
         Storage.get<number>('bestStreak', 0),
         getGeminiKey(),
         Storage.get<number>('restTimerSecs', 60),
         Storage.get<boolean>('restTimerAuto', true),
+        getWeeklyGoal(),
       ]);
       setTotalWorkouts(h.length);
       setStreak(s);
@@ -63,6 +66,7 @@ export default function Profile() {
       if (!key) setApiKey('');
       setRestSecs(rs);
       setRestAuto(ra);
+      setWeeklyGoalState(wg);
       setLoadError(false);
     } catch {
       setLoadError(true);
@@ -128,8 +132,7 @@ export default function Profile() {
     }
   };
 
-  const doImportBackup = async () => {
-    if (backupBusy) return;
+  const doImportBackup = async () => {    if (backupBusy) return;
     setBackupBusy(true);
     try {
       const backup = await pickBackupFile();
@@ -163,6 +166,13 @@ export default function Profile() {
     } finally {
       setBackupBusy(false);
     }
+  };
+
+  const changeWeeklyGoal = (delta: number) => {
+    void impactLight();
+    const next = Math.min(7, Math.max(1, weeklyGoal + delta));
+    setWeeklyGoalState(next);
+    void setWeeklyGoal(next);
   };
 
   const confirmReset = () => {
@@ -343,6 +353,37 @@ export default function Profile() {
           >
             <Ionicons name="cloud-download-outline" size={16} color={colors.primaryStrong} />
             <Text style={styles.backupButtonTextSecondary}>{backupBusy ? 'Working' : 'Import'}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+      </FadeIn>
+
+      <FadeIn delay={110}>
+      <View style={styles.card}>
+        <View style={styles.aiCardTitleRow}>
+          <Ionicons name="flag-outline" size={18} color={colors.primaryStrong} />
+          <Text style={styles.cardLabel}>Weekly Goal</Text>
+        </View>
+        <Text style={styles.hint}>
+          Target sessions per week. Fall behind and you'll get a nudge on Sunday.
+        </Text>
+        <View style={styles.goalStepper}>
+          <TouchableOpacity
+            style={styles.stepperButton}
+            onPress={() => changeWeeklyGoal(-1)}
+            activeOpacity={0.8}
+            accessibilityLabel="Decrease weekly goal"
+          >
+            <Ionicons name="remove" size={20} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.goalValue}>{weeklyGoal}</Text>
+          <TouchableOpacity
+            style={styles.stepperButton}
+            onPress={() => changeWeeklyGoal(1)}
+            activeOpacity={0.8}
+            accessibilityLabel="Increase weekly goal"
+          >
+            <Ionicons name="add" size={20} color={colors.text} />
           </TouchableOpacity>
         </View>
       </View>
@@ -687,6 +728,30 @@ const styles = StyleSheet.create({
     color: colors.primaryStrong,
     fontSize: 15,
     fontWeight: '600',
+  },
+  goalStepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.md,
+  },
+  stepperButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.elevated,
+    borderColor: colors.borderStrong,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  goalValue: {
+    color: colors.text,
+    fontSize: 32,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+    minWidth: 48,
+    textAlign: 'center',
   },
   recordRow: {
     flexDirection: 'row',

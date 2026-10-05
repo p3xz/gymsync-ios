@@ -18,6 +18,7 @@ import { useApp } from '../_layout';
 import FadeIn from '../../components/FadeIn';
 import { Storage } from '../../lib/storage';
 import { toast } from '../../lib/toast';
+import { checkWeeklyGoalNudge } from '../../lib/weeklyGoal';
 import { colors, radius, spacing } from '../../lib/theme';
 import {
   WEEKDAY_NAMES,
@@ -75,6 +76,8 @@ export default function Home() {
     } finally {
       setInitialLoading(false);
     }
+    // Best-effort Sunday nudge; never blocks the home screen.
+    void checkWeeklyGoalNudge();
   }, []);
 
   // Re-read stats and today's workout every time the tab regains focus,
