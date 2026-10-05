@@ -48,6 +48,8 @@ interface DraftExercise {
   name: string;
   sets: string;
   reps: string;
+  /** Superset group id shared with linked neighbours; null = standalone. */
+  group: string | null;
 }
 
 const BUILT_IN_OPTIONS: DayPlan[] = [
@@ -118,7 +120,7 @@ export default function Routines() {
   const openNewRoutine = () => {
     setEditing({ id: makeRoutineId(), name: '', exercises: [] });
     setDraftName('');
-    setDraftExercises([{ key: 'new-0', name: '', sets: '3', reps: '8-12' }]);
+    setDraftExercises([{ key: 'new-0', name: '', sets: '3', reps: '8-12', group: null }]);
   };
 
   const openEditRoutine = (routine: CustomRoutine) => {
@@ -130,6 +132,7 @@ export default function Routines() {
         name: ex.name,
         sets: String(ex.targetSets),
         reps: ex.targetReps,
+        group: ex.supersetId ?? null,
       }))
     );
   };
@@ -141,8 +144,28 @@ export default function Routines() {
   const addDraftExercise = () => {
     setDraftExercises((prev) => [
       ...prev,
-      { key: `new-${Date.now()}-${prev.length}`, name: '', sets: '3', reps: '8-12' },
+      { key: `new-${Date.now()}-${prev.length}`, name: '', sets: '3', reps: '8-12', group: null },
     ]);
+  };
+
+  /** Links an exercise with the one above it into a superset (tap again to unlink). */
+  const toggleSupersetLink = (key: string) => {
+    setDraftExercises((prev) => {
+      const idx = prev.findIndex((ex) => ex.key === key);
+      if (idx <= 0) return prev;
+      const curr = prev[idx];
+      const above = prev[idx - 1];
+      const next = [...prev];
+      if (curr.group && curr.group === above.group) {
+        next[idx] = { ...curr, group: null };
+      } else {
+        const groupId = above.group ?? `g-${Date.now()}-${idx}`;
+        next[idx] = { ...curr, group: groupId };
+        if (!above.group) next[idx - 1] = { ...above, group: groupId };
+      }
+      void impactMedium();
+      return next;
+    });
   };
 
   const removeDraftExercise = (key: string) => {
@@ -164,6 +187,7 @@ export default function Routines() {
         name: ex.name.trim(),
         targetSets: Math.max(1, parseInt(ex.sets, 10) || 3),
         targetReps: ex.reps.trim() || '8-12',
+        ...(ex.group ? { supersetId: ex.group } : {}),
       }));
     if (exercises.length === 0) {
       void notifyError();
@@ -252,6 +276,7 @@ export default function Routines() {
           name: ex.name,
           sets: String(ex.targetSets),
           reps: ex.targetReps,
+          group: null,
         }))
       );
       setAiTarget(null);
@@ -427,8 +452,9 @@ export default function Routines() {
             />
 
             <Text style={styles.inputLabel}>Exercises</Text>
+            <Text style={styles.supersetHint}>Tap the link icon to pair an exercise with the one above it into a superset.</Text>
             <ScrollView style={styles.draftList} keyboardShouldPersistTaps="handled">
-              {draftExercises.map((ex) => (
+              {draftExercises.map((ex, exIndex) => (
                 <View key={ex.key} style={styles.draftRow}>
                   <TextInput
                     style={[styles.input, styles.draftName]}
@@ -455,6 +481,20 @@ export default function Routines() {
                     placeholderTextColor={colors.textTertiary}
                     maxLength={8}
                   />
+                  {exIndex > 0 && (
+                    <TouchableOpacity
+                      onPress={() => toggleSupersetLink(ex.key)}
+                      hitSlop={8}
+                      activeOpacity={0.7}
+                      accessibilityLabel={ex.group ? 'Unlink from superset' : 'Link into superset with above'}
+                    >
+                      <Ionicons
+                        name="link"
+                        size={22}
+                        color={ex.group ? colors.primaryStrong : colors.textTertiary}
+                      />
+                    </TouchableOpacity>
+                  )}
                   <TouchableOpacity onPress={() => removeDraftExercise(ex.key)} hitSlop={8} activeOpacity={0.7}>
                     <Ionicons name="close-circle" size={22} color={colors.danger} />
                   </TouchableOpacity>
@@ -812,6 +852,11 @@ const styles = StyleSheet.create({
     color: colors.danger,
     fontSize: 14,
     marginTop: spacing.xs,
+  },
+  supersetHint: {
+    color: colors.textTertiary,
+    fontSize: 12,
+    marginBottom: spacing.xs,
   },
   disabledButton: {
     opacity: 0.6,

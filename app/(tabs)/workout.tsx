@@ -382,8 +382,12 @@ export default function Workout() {
           toast(`New PR! ${name}: ${w} kg`);
         }
       }
-      // Checking off a set starts the rest timer when auto-rest is on.
-      if (restAuto) setRestVisible(true);
+      const gid = exercises[index].def.supersetId;
+      const nextGid = exercises[index + 1]?.def.supersetId;
+      const midSuperset = gid != null && nextGid === gid;
+      // Rest after each set — but supersets run back-to-back, resting only
+      // after the whole group is done.
+      if (restAuto && !midSuperset) setRestVisible(true);
     }
     void updateWorkoutIsland(
       next.filter((ex) => ex.completed).length,
@@ -416,6 +420,18 @@ export default function Workout() {
     inputRange: [0, 1],
     outputRange: ['0%', '100%'],
   });
+
+  // Letter per superset group (A, B, C...) in first-appearance order.
+  const supersetLetters = new Map<string, string>();
+  {
+    let code = 65;
+    for (const ex of exercises) {
+      const gid = ex.def.supersetId;
+      if (gid && !supersetLetters.has(gid)) {
+        supersetLetters.set(gid, String.fromCharCode(code++));
+      }
+    }
+  }
 
   const finishWorkout = async () => {
     if (!workout || finishing) return;
@@ -554,9 +570,16 @@ export default function Workout() {
         )}
 
         {exercises.map((ex, index) => (
-          <View key={ex.def.id} style={styles.card}>
+          <View key={ex.def.id} style={[styles.card, ex.def.supersetId && styles.supersetCard]}>
             <View style={styles.exerciseTop}>
               <View style={styles.exerciseInfo}>
+                {ex.def.supersetId && (
+                  <View style={styles.supersetBadge}>
+                    <Text style={styles.supersetBadgeText}>
+                      Superset {supersetLetters.get(ex.def.supersetId)}
+                    </Text>
+                  </View>
+                )}
                 <Text style={styles.exerciseName}>{ex.def.name}</Text>
                 <Text style={styles.exerciseTarget}>
                   {ex.def.targetSets} sets x {ex.def.targetReps} reps
@@ -694,6 +717,23 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '700',
     marginBottom: spacing.xs,
+  },
+  supersetCard: {
+    borderColor: colors.primaryStrong,
+  },
+  supersetBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.primary,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 2,
+    marginBottom: 4,
+  },
+  supersetBadgeText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   muted: {
     color: colors.textSecondary,

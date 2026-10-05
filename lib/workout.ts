@@ -13,6 +13,8 @@ export interface ExerciseDef {
   name: string;
   targetSets: number;
   targetReps: string; // a range like '6-8', not a hard rule
+  /** Groups consecutive exercises into a superset; undefined = standalone. */
+  supersetId?: string;
 }
 
 export type SplitName = 'PUSH' | 'PULL' | 'LEGS' | 'REST';
