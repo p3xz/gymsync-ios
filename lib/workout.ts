@@ -292,6 +292,33 @@ export interface FinishWorkoutInput {
   exerciseData: LoggedExercise[];
 }
 
+/** Everything the Workout tab needs to redo the last logged session. */
+export interface RepeatPayload {
+  title: string;
+  defs: ExerciseDef[];
+  weights: string[];
+}
+
+/**
+ * Builds a repeat of the most recent logged workout, prefilled with the
+ * same weights. Null when there is no history yet.
+ */
+export async function getRepeatPayload(): Promise<RepeatPayload | null> {
+  const history = await Storage.get<HistoryEntry[]>('workoutHistory', []);
+  const last = history[0];
+  if (!last || last.exercises.length === 0) return null;
+  return {
+    title: last.split,
+    defs: last.exercises.map((ex, i) => ({
+      id: `repeat-${Date.now()}-${i}`,
+      name: ex.name,
+      targetSets: 1,
+      targetReps: '',
+    })),
+    weights: last.exercises.map((ex) => (ex.weight !== null ? String(ex.weight) : '')),
+  };
+}
+
 export async function persistFinishedWorkout(input: FinishWorkoutInput): Promise<{ durationLabel: string; calories: number }> {
   const now = new Date();
   const todayKey = toDateKey(now);

@@ -17,12 +17,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useApp } from '../_layout';
 import FadeIn from '../../components/FadeIn';
 import { Storage } from '../../lib/storage';
+import { toast } from '../../lib/toast';
 import { colors, radius, spacing } from '../../lib/theme';
 import {
   WEEKDAY_NAMES,
   formatClock,
   formatDateLabel,
   getQuoteForToday,
+  getRepeatPayload,
   getTodaysWorkout,
   getTrainingDaysPerWeek,
   type ResolvedWorkout,
@@ -88,6 +90,16 @@ export default function Home() {
     await reload();
     setRefreshing(false);
   }, [reload]);
+
+  const repeatLastWorkout = async () => {
+    const payload = await getRepeatPayload();
+    if (!payload) {
+      toast('No previous workout to repeat yet');
+      return;
+    }
+    await Storage.set('pendingRepeat', payload);
+    router.navigate('/workout');
+  };
 
   const quote = getQuoteForToday(now);
   const greeting = name ? `Welcome back, ${name}` : 'Welcome back';
@@ -176,6 +188,17 @@ export default function Home() {
           activeOpacity={0.85}
         >
           <Text style={styles.startButtonText}>Start Workout</Text>
+        </TouchableOpacity>
+      </FadeIn>
+
+      <FadeIn delay={300}>
+        <TouchableOpacity
+          style={styles.repeatButton}
+          onPress={() => void repeatLastWorkout()}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="repeat" size={18} color={colors.primaryStrong} />
+          <Text style={styles.repeatButtonText}>Repeat Last Workout</Text>
         </TouchableOpacity>
       </FadeIn>
     </ScrollView>
@@ -302,6 +325,23 @@ const styles = StyleSheet.create({
   startButtonText: {
     color: '#ffffff',
     fontSize: 17,
+    fontWeight: '600',
+  },
+  repeatButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    backgroundColor: colors.card,
+    borderColor: colors.borderStrong,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginTop: -spacing.xs,
+  },
+  repeatButtonText: {
+    color: colors.primaryStrong,
+    fontSize: 16,
     fontWeight: '600',
   },
 });

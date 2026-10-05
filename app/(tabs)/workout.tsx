@@ -41,11 +41,13 @@ import {
 } from '../../lib/liveActivity';
 import {
   formatElapsed,
+  getRepeatPayload,
   getTodaysWorkout,
   persistFinishedWorkout,
   toDateKey,
   type ExerciseDef,
   type HistoryEntry,
+  type RepeatPayload,
   type ResolvedWorkout,
 } from '../../lib/workout';
 
@@ -238,11 +240,16 @@ export default function Workout() {
   }, [stopTimer]);
 
   const startSession = useCallback(
-    (resolved: ResolvedWorkout, dateKey: string, startedAt?: number) => {
+    (resolved: ResolvedWorkout, dateKey: string, startedAt?: number, prefillWeights?: string[]) => {
       const start = startedAt ?? Date.now();
       startTimeRef.current = start;
       sessionRef.current = { dateKey, startedAt: start, title: resolved.title };
-      const fresh = resolved.exercises.map((def) => ({ def, completed: false, weight: '', notes: '' }));
+      const fresh = resolved.exercises.map((def, i) => ({
+        def,
+        completed: false,
+        weight: prefillWeights?.[i] ?? '',
+        notes: '',
+      }));
       setElapsedMs(startedAt ? Date.now() - start : 0);
       setExercises(fresh);
       setSessionDateKey(dateKey);
@@ -299,16 +306,30 @@ export default function Workout() {
       (async () => {
         const todayKey = toDateKey(new Date());
         if (todayKey === sessionDateKey) return; // resume, do not reset
-        const [resolved, storedRestSecs, storedRestAuto, history] = await Promise.all([
+        const [resolved, storedRestSecs, storedRestAuto, history, pending] = await Promise.all([
           getTodaysWorkout(),
           Storage.get<number>('restTimerSecs', 60),
           Storage.get<boolean>('restTimerAuto', true),
           Storage.get<HistoryEntry[]>('workoutHistory', []),
+          Storage.get<RepeatPayload | null>('pendingRepeat', null),
         ]);
         if (cancelled) return;
         setRestSecs(storedRestSecs);
         setRestAuto(storedRestAuto);
         recordsRef.current = bestWeightByExercise(history);
+        if (pending && pending.defs.length > 0) {
+          // One-tap repeat from Home: redo the last session with its weights.
+          await Storage.remove('pendingRepeat');
+          const repeatResolved: ResolvedWorkout = {
+            title: pending.title,
+            isRest: false,
+            exercises: pending.defs,
+            subtitle: `${pending.defs.length} exercises · repeating last session`,
+          };
+          setWorkout(repeatResolved);
+          startSession(repeatResolved, todayKey, undefined, pending.weights);
+          return;
+        }
         setWorkout(resolved);
         if (resolved.isRest) {
           // Rest days never hold a session; drop anything stale.
