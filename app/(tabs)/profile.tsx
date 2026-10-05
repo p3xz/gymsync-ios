@@ -23,6 +23,7 @@ import { toast } from '../../lib/toast';
 import { impactLight } from '../../lib/haptics';
 import { clearGeminiKey, getGeminiKey, saveGeminiKey } from '../../lib/gemini';
 import { REST_PRESETS } from '../../components/RestTimer';
+import { exportBackup, pickBackupFile, restoreBackup, shareBackupFile } from '../../lib/backup';
 import { colors, radius, spacing } from '../../lib/theme';
 import type { HistoryEntry } from '../../lib/workout';
 
@@ -38,6 +39,7 @@ export default function Profile() {
   const [keySavedNote, setKeySavedNote] = useState(false);
   const [restSecs, setRestSecs] = useState(60);
   const [restAuto, setRestAuto] = useState(true);
+  const [backupBusy, setBackupBusy] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
 
@@ -107,6 +109,57 @@ export default function Profile() {
         },
       },
     ]);
+  };
+
+  const doExportBackup = async () => {
+    if (backupBusy) return;
+    setBackupBusy(true);
+    try {
+      const uri = await exportBackup();
+      await shareBackupFile(uri);
+      toast('Backup ready — save it somewhere safe');
+    } catch {
+      Alert.alert('Backup failed', 'Could not create the backup file. Please try again.');
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+
+  const doImportBackup = async () => {
+    if (backupBusy) return;
+    setBackupBusy(true);
+    try {
+      const backup = await pickBackupFile();
+      if (!backup) return; // user cancelled the picker
+      const count = Object.keys(backup.data).length;
+      Alert.alert(
+        'Restore backup?',
+        `This replaces all current data with the backup (${count} items). This cannot be undone.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Restore',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await restoreBackup(backup);
+                toast('Backup restored');
+                await reload();
+              } catch {
+                Alert.alert('Restore failed', 'The backup file could not be restored.');
+              }
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      Alert.alert(
+        'Invalid backup',
+        error instanceof Error ? error.message : 'Could not read the backup file.'
+      );
+    } finally {
+      setBackupBusy(false);
+    }
   };
 
   const confirmReset = () => {
@@ -257,6 +310,38 @@ export default function Profile() {
             <View style={[styles.toggleKnob, restAuto && styles.toggleKnobOn]} />
           </View>
         </TouchableOpacity>
+      </View>
+      </FadeIn>
+
+      <FadeIn delay={100}>
+      <View style={styles.card}>
+        <View style={styles.aiCardTitleRow}>
+          <Ionicons name="cloud-upload-outline" size={18} color={colors.primaryStrong} />
+          <Text style={styles.cardLabel}>Backup & Restore</Text>
+        </View>
+        <Text style={styles.hint}>
+          Sideloaded apps lose all data when reinstalled. Export a backup file and keep it somewhere safe.
+        </Text>
+        <View style={styles.backupRow}>
+          <TouchableOpacity
+            style={[styles.backupButton, backupBusy && styles.saveButtonDisabled]}
+            onPress={() => void doExportBackup()}
+            disabled={backupBusy}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="share-outline" size={16} color="#ffffff" />
+            <Text style={styles.saveButtonText}>{backupBusy ? 'Working' : 'Export'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.backupButton, styles.backupButtonSecondary, backupBusy && styles.saveButtonDisabled]}
+            onPress={() => void doImportBackup()}
+            disabled={backupBusy}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="cloud-download-outline" size={16} color={colors.primaryStrong} />
+            <Text style={styles.backupButtonTextSecondary}>{backupBusy ? 'Working' : 'Import'}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
       </FadeIn>
 
@@ -549,5 +634,29 @@ const styles = StyleSheet.create({
   toggleKnobOn: {
     backgroundColor: '#ffffff',
     alignSelf: 'flex-end',
+  },
+  backupRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  backupButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+  },
+  backupButtonSecondary: {
+    backgroundColor: 'transparent',
+    borderColor: colors.borderStrong,
+    borderWidth: 1,
+  },
+  backupButtonTextSecondary: {
+    color: colors.primaryStrong,
+    fontSize: 15,
+    fontWeight: '600',
   },
 });
