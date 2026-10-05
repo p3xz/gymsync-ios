@@ -5,8 +5,8 @@
 // byte-for-byte restore.
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as FileSystem from 'expo-file-system';
 import * as DocumentPicker from 'expo-document-picker';
+import { File, Paths } from 'expo-file-system';
 import { Share } from 'react-native';
 
 const PREFIX = 'gymsync:';
@@ -35,9 +35,14 @@ export async function exportBackup(): Promise<string> {
     data,
   };
   const fileName = `gymsync-backup-${new Date().toISOString().slice(0, 10)}.json`;
-  const uri = `${FileSystem.cacheDirectory}${fileName}`;
-  await FileSystem.writeAsStringAsync(uri, JSON.stringify(backup));
-  return uri;
+  const file = new File(Paths.cache, fileName);
+  const writer = file.writableStream().getWriter();
+  try {
+    await writer.write(new TextEncoder().encode(JSON.stringify(backup)));
+  } finally {
+    await writer.close();
+  }
+  return file.uri;
 }
 
 /** Shares a previously exported backup file through the iOS share sheet. */
@@ -52,8 +57,7 @@ export async function pickBackupFile(): Promise<BackupFile | null> {
     copyToCacheDirectory: true,
   });
   if (result.canceled || !result.assets || result.assets.length === 0) return null;
-  const raw = await FileSystem.readAsStringAsync(result.assets[0].uri);
-  const parsed = JSON.parse(raw) as Partial<BackupFile>;
+  const parsed = (await new File(result.assets[0].uri).json()) as Partial<BackupFile>;
   if (
     parsed.app !== BACKUP_APP ||
     typeof parsed.data !== 'object' ||
