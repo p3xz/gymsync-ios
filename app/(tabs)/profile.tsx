@@ -448,6 +448,30 @@ export default function Profile() {
       </View>
       </FadeIn>
 
+      <FadeIn delay={115}>
+      <View style={styles.card}>
+        <TouchableOpacity
+          style={styles.linkRow}
+          onPress={() => router.push('/gear')}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="bag-handle-outline" size={20} color={colors.primaryStrong} />
+          <Text style={styles.linkText}>Gym Gear</Text>
+          <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+        </TouchableOpacity>
+        <View style={styles.linkDivider} />
+        <TouchableOpacity
+          style={styles.linkRow}
+          onPress={() => router.push('/form-check')}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="videocam-outline" size={20} color={colors.primaryStrong} />
+          <Text style={styles.linkText}>Form Check</Text>
+          <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+        </TouchableOpacity>
+      </View>
+      </FadeIn>
+
       <FadeIn delay={120}>
       <View style={styles.statRow}>
         <View style={[styles.card, styles.statCard]}>
@@ -782,6 +806,23 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     borderColor: colors.borderStrong,
     borderWidth: 1,
+  },
+  linkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  linkText: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: '600',
+    flex: 1,
+  },
+  linkDivider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: spacing.xs,
   },
   backupButtonTextSecondary: {
     color: colors.primaryStrong,

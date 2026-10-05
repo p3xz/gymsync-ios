@@ -73,6 +73,8 @@ export default function RootLayout() {
             <Stack.Screen name="plate-calculator" />
             <Stack.Screen name="upgrade" />
             <Stack.Screen name="programs" />
+            <Stack.Screen name="gear" />
+            <Stack.Screen name="form-check" />
           </>
         )}
       </Stack>
