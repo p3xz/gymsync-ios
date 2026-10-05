@@ -2,7 +2,7 @@
 // newest first. Re-renders on every focus since new entries can
 // appear at any point in the session.
 
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
@@ -25,11 +25,14 @@ import {
   weeklyVolume,
   type WeekPoint,
 } from '../../lib/charts';
+import { isPro } from '../../lib/pro';
 import type { HistoryEntry } from '../../lib/workout';
 
 export default function History() {
+  const router = useRouter();
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [streak, setStreak] = useState(0);
+  const [pro, setPro] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [volume, setVolume] = useState<WeekPoint[]>([]);
   const [trendNames, setTrendNames] = useState<string[]>([]);
@@ -41,12 +44,14 @@ export default function History() {
 
   const reload = useCallback(async () => {
     try {
-      const [h, s] = await Promise.all([
+      const [h, s, p] = await Promise.all([
         Storage.get<HistoryEntry[]>('workoutHistory', []),
         Storage.get<number>('streak', 0),
+        isPro(),
       ]);
       setHistory(h);
       setStreak(s);
+      setPro(p);
       setVolume(weeklyVolume(h));
       const names = exercisesWithWeights(h);
       setTrendNames(names);
@@ -128,7 +133,26 @@ export default function History() {
         </View>
       </FadeIn>
 
-      {history.length > 0 && (
+      {history.length > 0 && !pro && (
+        <FadeIn delay={60}>
+          <TouchableOpacity
+            style={styles.card}
+            onPress={() => router.push('/upgrade')}
+            activeOpacity={0.8}
+          >
+            <View style={styles.proPromptRow}>
+              <Ionicons name="lock-closed-outline" size={18} color={colors.warning} />
+              <View style={styles.proPromptInfo}>
+                <Text style={styles.entrySplit}>Progress charts are Pro</Text>
+                <Text style={styles.entryMeta}>Weekly volume and strength trends. Tap to see plans.</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+            </View>
+          </TouchableOpacity>
+        </FadeIn>
+      )}
+
+      {history.length > 0 && pro && (
         <FadeIn delay={60}>
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>Weekly Volume</Text>
@@ -140,7 +164,7 @@ export default function History() {
         </FadeIn>
       )}
 
-      {trendNames.length > 0 && (
+      {trendNames.length > 0 && pro && (
         <FadeIn delay={120}>
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>Strength Trend</Text>
@@ -356,6 +380,15 @@ const styles = StyleSheet.create({
   },
   chipTextActive: {
     color: '#ffffff',
+  },
+  proPromptRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  proPromptInfo: {
+    flex: 1,
+    gap: 2,
   },
   entryHeader: {
     flexDirection: 'row',

@@ -2,7 +2,7 @@
 // edit or delete them, and assign each weekday either a built-in split or
 // one of your custom routines. The Home and Workout tabs read this schedule.
 
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
@@ -48,6 +48,7 @@ import {
   searchLibrary,
   type LibraryExercise,
 } from '../../lib/exercises';
+import { isPro } from '../../lib/pro';
 
 interface DraftExercise {
   key: string;
@@ -66,6 +67,7 @@ const BUILT_IN_OPTIONS: DayPlan[] = [
 ];
 
 export default function Routines() {
+  const router = useRouter();
   const [routines, setRoutines] = useState<CustomRoutine[]>([]);
   const [schedule, setSchedule] = useState<DayPlan[]>(DEFAULT_SCHEDULE);
 
@@ -253,15 +255,23 @@ export default function Routines() {
     ]);
   };
 
-  /* ---------------- AI coach ---------------- */
+  /* ---------------- AI coach (Pro) ---------------- */
 
-  const openAiNew = () => {
+  const openAiNew = async () => {
+    if (!(await isPro())) {
+      router.push('/upgrade');
+      return;
+    }
     setAiTarget({ mode: 'new' });
     setAiPrompt('');
     setAiError(null);
   };
 
-  const openAiEdit = (routine: CustomRoutine) => {
+  const openAiEdit = async (routine: CustomRoutine) => {
+    if (!(await isPro())) {
+      router.push('/upgrade');
+      return;
+    }
     setAiTarget({ mode: 'edit', routine });
     setAiPrompt('');
     setAiError(null);

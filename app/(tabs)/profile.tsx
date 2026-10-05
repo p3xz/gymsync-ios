@@ -26,6 +26,8 @@ import { REST_PRESETS } from '../../components/RestTimer';
 import { exportBackup, pickBackupFile, restoreBackup, shareBackupFile } from '../../lib/backup';
 import { computeRecords, type ExerciseRecord } from '../../lib/records';
 import { getWeeklyGoal, setWeeklyGoal } from '../../lib/weeklyGoal';
+import { isPro, setPro } from '../../lib/pro';
+import { useRouter } from 'expo-router';
 import { colors, radius, spacing } from '../../lib/theme';
 import type { HistoryEntry } from '../../lib/workout';
 
@@ -44,12 +46,14 @@ export default function Profile() {
   const [backupBusy, setBackupBusy] = useState(false);
   const [records, setRecords] = useState<ExerciseRecord[]>([]);
   const [weeklyGoal, setWeeklyGoalState] = useState(4);
+  const [pro, setProState] = useState(false);
+  const router = useRouter();
   const [initialLoading, setInitialLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
 
   const reload = useCallback(async () => {
     try {
-      const [h, s, b, key, rs, ra, wg] = await Promise.all([
+      const [h, s, b, key, rs, ra, wg, p] = await Promise.all([
         Storage.get<HistoryEntry[]>('workoutHistory', []),
         Storage.get<number>('streak', 0),
         Storage.get<number>('bestStreak', 0),
@@ -57,6 +61,7 @@ export default function Profile() {
         Storage.get<number>('restTimerSecs', 60),
         Storage.get<boolean>('restTimerAuto', true),
         getWeeklyGoal(),
+        isPro(),
       ]);
       setTotalWorkouts(h.length);
       setStreak(s);
@@ -67,6 +72,7 @@ export default function Profile() {
       setRestSecs(rs);
       setRestAuto(ra);
       setWeeklyGoalState(wg);
+      setProState(p);
       setLoadError(false);
     } catch {
       setLoadError(true);
@@ -173,6 +179,14 @@ export default function Profile() {
     const next = Math.min(7, Math.max(1, weeklyGoal + delta));
     setWeeklyGoalState(next);
     void setWeeklyGoal(next);
+  };
+
+  const togglePro = () => {
+    void impactLight();
+    const next = !pro;
+    setProState(next);
+    void setPro(next);
+    toast(next ? 'Pro enabled (preview)' : 'Pro disabled');
   };
 
   const confirmReset = () => {
@@ -335,24 +349,69 @@ export default function Profile() {
         <Text style={styles.hint}>
           Sideloaded apps lose all data when reinstalled. Export a backup file and keep it somewhere safe.
         </Text>
-        <View style={styles.backupRow}>
+        {pro ? (
+          <View style={styles.backupRow}>
+            <TouchableOpacity
+              style={[styles.backupButton, backupBusy && styles.saveButtonDisabled]}
+              onPress={() => void doExportBackup()}
+              disabled={backupBusy}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="share-outline" size={16} color="#ffffff" />
+              <Text style={styles.saveButtonText}>{backupBusy ? 'Working' : 'Export'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.backupButton, styles.backupButtonSecondary, backupBusy && styles.saveButtonDisabled]}
+              onPress={() => void doImportBackup()}
+              disabled={backupBusy}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="cloud-download-outline" size={16} color={colors.primaryStrong} />
+              <Text style={styles.backupButtonTextSecondary}>{backupBusy ? 'Working' : 'Import'}</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
           <TouchableOpacity
-            style={[styles.backupButton, backupBusy && styles.saveButtonDisabled]}
-            onPress={() => void doExportBackup()}
-            disabled={backupBusy}
+            style={styles.proPrompt}
+            onPress={() => router.push('/upgrade')}
             activeOpacity={0.8}
           >
-            <Ionicons name="share-outline" size={16} color="#ffffff" />
-            <Text style={styles.saveButtonText}>{backupBusy ? 'Working' : 'Export'}</Text>
+            <Ionicons name="lock-closed-outline" size={16} color={colors.warning} />
+            <Text style={styles.proPromptText}>Backup & restore is a Pro feature. See plans.</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+      </FadeIn>
+
+      <FadeIn delay={105}>
+      <View style={styles.card}>
+        <View style={styles.aiCardTitleRow}>
+          <Ionicons name="star" size={18} color={colors.warning} />
+          <Text style={styles.cardLabel}>GymSync Pro</Text>
+        </View>
+        <Text style={styles.hint}>
+          {pro
+            ? 'Pro is active. AI Coach, progress charts, and backup are unlocked.'
+            : 'Unlock the AI Coach, progress charts, and backup & restore.'}
+        </Text>
+        <View style={styles.proRow}>
+          <TouchableOpacity
+            style={styles.proButton}
+            onPress={() => router.push('/upgrade')}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.saveButtonText}>See Pro</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.backupButton, styles.backupButtonSecondary, backupBusy && styles.saveButtonDisabled]}
-            onPress={() => void doImportBackup()}
-            disabled={backupBusy}
+            style={styles.toggleRowCompact}
+            onPress={togglePro}
             activeOpacity={0.8}
+            accessibilityLabel="Toggle Pro preview"
           >
-            <Ionicons name="cloud-download-outline" size={16} color={colors.primaryStrong} />
-            <Text style={styles.backupButtonTextSecondary}>{backupBusy ? 'Working' : 'Import'}</Text>
+            <Text style={styles.toggleLabel}>Preview: {pro ? 'On' : 'Off'}</Text>
+            <View style={[styles.toggle, pro && styles.toggleOn]}>
+              <View style={[styles.toggleKnob, pro && styles.toggleKnobOn]} />
+            </View>
           </TouchableOpacity>
         </View>
       </View>
@@ -728,6 +787,38 @@ const styles = StyleSheet.create({
     color: colors.primaryStrong,
     fontSize: 15,
     fontWeight: '600',
+  },
+  proPrompt: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    backgroundColor: colors.elevated,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    padding: spacing.sm,
+  },
+  proPromptText: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    flex: 1,
+  },
+  proRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  proButton: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  toggleRowCompact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
   },
   goalStepper: {
     flexDirection: 'row',
