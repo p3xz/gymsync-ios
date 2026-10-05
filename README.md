@@ -110,7 +110,7 @@ local network.
 
 ## Android builds via GitHub Actions
 
-`.github/workflows/android-build.yml` builds the Android APK with EAS on an
+`.github/workflows/mobile-build.yml` builds the Android APK with EAS on an
 `ubuntu-latest` runner on every push to `main`. It uses the `preview` profile
 in `eas.json`, which sets `buildType: "apk"`. The finished APK is uploaded as
 the `gymsync-apk` workflow artifact.
