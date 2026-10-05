@@ -6,6 +6,7 @@ import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -30,6 +31,18 @@ import { isPro, setPro } from '../../lib/pro';
 import { useRouter } from 'expo-router';
 import { colors, radius, spacing } from '../../lib/theme';
 import type { HistoryEntry } from '../../lib/workout';
+
+const SOCIAL_LINKS = [
+  { label: 'GitHub', url: 'https://github.com/p3xz', icon: 'logo-github' as const },
+  { label: 'LinkedIn', url: 'https://linkedin.com/in/namish-yadav-639769408', icon: 'logo-linkedin' as const },
+  { label: 'Instagram', url: 'https://instagram.com/nam7sh', icon: 'logo-instagram' as const },
+  { label: 'Portfolio', url: 'https://namishhh.vercel.app', icon: 'globe-outline' as const },
+];
+
+const openLink = (url: string) => {
+  void impactLight();
+  Linking.openURL(url).catch(() => toast('Could not open link'));
+};
 
 export default function Profile() {
   const { name, refreshName, resetApp } = useApp();
@@ -533,13 +546,47 @@ export default function Profile() {
       </View>
       </FadeIn>
 
+      <FadeIn delay={270}>
+      <View style={styles.card}>
+        <View style={styles.aiCardTitleRow}>
+          <Ionicons name="shield-checkmark-outline" size={18} color={colors.primaryStrong} />
+          <Text style={styles.cardLabel}>Privacy Policy</Text>
+        </View>
+        <Text style={styles.privacyText}>
+          GymSync keeps everything on this device. Your workouts, routines, streaks, and
+          name are stored in local device storage and are never uploaded anywhere.
+        </Text>
+        <Text style={styles.privacyText}>
+          If you add a Gemini API key, it stays on this device. Routine and workout data
+          is sent to the Google Gemini API only when you tap the AI button. Backup files
+          you export are yours; they leave the app only when you share them yourself.
+        </Text>
+        <Text style={styles.privacyText}>
+          No accounts, no tracking, no analytics, no cookies.
+        </Text>
+      </View>
+      </FadeIn>
+
       <FadeIn delay={300}>
       <View style={styles.card}>
         <Text style={styles.creditsTitle}>GymSync</Text>
-        <Text style={styles.credits}>Designed and built by p3xz</Text>
+        <Text style={styles.credits}>Made by Namish</Text>
         <Text style={styles.credits}>Powered by React Native, Expo, and Gemini AI</Text>
         <Text style={styles.credits}>Ported from the GymSync web app</Text>
         <Text style={styles.credits}>All data stays on this device</Text>
+        <View style={styles.socialGrid}>
+          {SOCIAL_LINKS.map((link) => (
+            <TouchableOpacity
+              key={link.label}
+              style={styles.socialButton}
+              onPress={() => openLink(link.url)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name={link.icon} size={16} color={colors.primaryStrong} />
+              <Text style={styles.socialButtonText}>{link.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
         <Text style={styles.creditsSub}>Version {appJson.expo.version}</Text>
       </View>
       </FadeIn>
@@ -717,6 +764,36 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textAlign: 'center',
     marginBottom: spacing.xs,
+  },
+  privacyText: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    lineHeight: 19,
+    marginBottom: spacing.sm,
+  },
+  socialGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    justifyContent: 'center',
+    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  socialButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    backgroundColor: colors.elevated,
+    borderColor: colors.borderStrong,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  socialButtonText: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: '600',
   },
   credits: {
     color: colors.textSecondary,
