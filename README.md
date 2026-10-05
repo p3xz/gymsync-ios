@@ -29,6 +29,38 @@ TypeScript, and expo-router. Dark theme, on-device storage, no backend.
   (e.g. PUSH, 12:34, 3/6). Updates as you check off exercises, ends when you
   finish. Needs an iPhone with iOS 16.2 or later (Dynamic Island needs
   iPhone 14 Pro or later; older iPhones show the Lock Screen activity).
+- **Rest timer** - countdown overlay on the workout screen with 30/60/90/120s
+  presets, vibration and toast on finish, skip button, and an auto-start
+  toggle with configurable default in Profile.
+- **Backup & restore** - export ALL app data to a JSON file and share it, or
+  import it back (Profile). Protects against sideload reinstall wipes.
+- **Personal records** - best weight per exercise derived from workout
+  history, mid-workout PR toasts, and a records list in Profile.
+- **Progress charts** - weekly training volume bars plus per-exercise best
+  weight trends on History, drawn with plain Views (no native chart deps).
+- **Plate calculator** - enter bar and target weight, get the plates per side
+  using standard 25/20/15/10/5/2.5/1.25 kg plates.
+- **Repeat last workout** - one-tap button on Home that starts a workout
+  prefilled with the last session's exercises, weights, and sets.
+- **Supersets** - link exercises in the routine editor; the workout runs
+  grouped exercises back-to-back with the rest timer between groups.
+- **Exercise library** - bundled data for common lifts (primary muscle,
+  instructions, form cues), searchable from the routine editor.
+- **Weekly goal** - set a target sessions-per-week goal; fall behind by Sunday
+  and a local notification nudges you.
+- **GymSync Pro** - upgrade screen plus a manual preview toggle in Profile.
+  Gates the AI Coach, progress charts, and backup. No real payments yet:
+  Razorpay/UPI hooks are marked in `lib/pro.ts` for later.
+- **Programs** - purchasable program catalog (Push Pull Legs, 5x5, beginner
+  fat-loss) with full previews; the buy button is an honest "coming soon",
+  no charges.
+- **Gear** - gear recommendation cards with clearly-marked TODO slots for
+  future affiliate URLs. No links yet.
+- **Form check** - pick a lift video and submit it; coaching review backend is
+  stubbed with an honest "coming soon" message.
+
+Not built: Apple Health sync and AdMob were deliberately skipped (both need
+native config / dev builds / accounts that would break the unsigned-IPA flow).
 
 All data is stored on-device with AsyncStorage under the `gymsync:` key prefix,
 mirroring the web app's localStorage keys.
@@ -120,6 +152,11 @@ Store distribution; `eas.json` keeps a release profile stub for that future.
 app/
   _layout.tsx        Root: onboarding gate + shared app state
   onboarding.tsx     First-launch name capture
+  plate-calculator.tsx Plate calculator screen
+  upgrade.tsx        GymSync Pro upgrade screen
+  programs.tsx       Paid program catalog
+  gear.tsx           Gym gear recommendations
+  form-check.tsx     Lift video form-check submission
   (tabs)/
     _layout.tsx      Bottom tab bar (Home, Workout, Routines, History, Profile)
     index.tsx        Home dashboard
@@ -131,6 +168,17 @@ lib/
   theme.ts           Colors, spacing, radii (ported from the web app)
   storage.ts         AsyncStorage wrapper with the `gymsync:` prefix
   workout.ts         Splits, exercises, quotes, schedule logic, streak math
+  backup.ts          Export/import of all gymsync:* keys
+  records.ts         Personal records derived from history
+  charts.ts          Weekly volume + per-exercise best-weight trends
+  plates.ts          Plate breakdown math
+  exercises.ts       Bundled exercise library data
+  weeklyGoal.ts      Weekly session goal + Sunday local notification
+  pro.ts             Pro gating (manual toggle until payments land)
+  programs.ts        Paid program catalog data
+components/
+  RestTimer.tsx      Rest countdown overlay
+  BarChart.tsx       Plain-View bar chart
 eas.json             EAS build profiles (development / preview / production)
 .github/workflows/
   mobile-build.yml   Android APK (EAS, ubuntu) + unsigned iOS IPA (xcodebuild, macOS), on push to main
