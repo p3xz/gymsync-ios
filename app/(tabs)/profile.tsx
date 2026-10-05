@@ -24,6 +24,7 @@ import { impactLight } from '../../lib/haptics';
 import { clearGeminiKey, getGeminiKey, saveGeminiKey } from '../../lib/gemini';
 import { REST_PRESETS } from '../../components/RestTimer';
 import { exportBackup, pickBackupFile, restoreBackup, shareBackupFile } from '../../lib/backup';
+import { computeRecords, type ExerciseRecord } from '../../lib/records';
 import { colors, radius, spacing } from '../../lib/theme';
 import type { HistoryEntry } from '../../lib/workout';
 
@@ -40,6 +41,7 @@ export default function Profile() {
   const [restSecs, setRestSecs] = useState(60);
   const [restAuto, setRestAuto] = useState(true);
   const [backupBusy, setBackupBusy] = useState(false);
+  const [records, setRecords] = useState<ExerciseRecord[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
 
@@ -56,6 +58,7 @@ export default function Profile() {
       setTotalWorkouts(h.length);
       setStreak(s);
       setBestStreak(b);
+      setRecords(computeRecords(h));
       setHasKey(key.length > 0);
       if (!key) setApiKey('');
       setRestSecs(rs);
@@ -367,6 +370,32 @@ export default function Profile() {
       </View>
       </FadeIn>
 
+      <FadeIn delay={210}>
+      <View style={styles.card}>
+        <View style={styles.aiCardTitleRow}>
+          <Ionicons name="medal-outline" size={18} color={colors.primaryStrong} />
+          <Text style={styles.cardLabel}>Personal Records</Text>
+        </View>
+        {records.length === 0 ? (
+          <Text style={styles.hint}>No records yet. Log workouts with weights and your best lifts will show up here.</Text>
+        ) : (
+          records.slice(0, 10).map((rec) => (
+            <View key={rec.name} style={styles.recordRow}>
+              <View style={styles.recordInfo}>
+                <Text style={styles.recordName}>{rec.name}</Text>
+                <Text style={styles.recordMeta}>
+                  {rec.sessions} session{rec.sessions === 1 ? '' : 's'} · last {rec.lastDateLabel}
+                </Text>
+              </View>
+              <Text style={styles.recordWeight}>
+                {rec.bestWeight > 0 ? `${rec.bestWeight} kg` : '—'}
+              </Text>
+            </View>
+          ))
+        )}
+      </View>
+      </FadeIn>
+
       <FadeIn delay={240}>
       <View style={[styles.card, styles.dangerCard]}>
         <Text style={styles.dangerTitle}>Reset All Data</Text>
@@ -658,5 +687,33 @@ const styles = StyleSheet.create({
     color: colors.primaryStrong,
     fontSize: 15,
     fontWeight: '600',
+  },
+  recordRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: spacing.xs,
+    borderTopColor: colors.border,
+    borderTopWidth: 1,
+  },
+  recordInfo: {
+    flex: 1,
+    marginRight: spacing.sm,
+  },
+  recordName: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  recordMeta: {
+    color: colors.textTertiary,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  recordWeight: {
+    color: colors.primaryStrong,
+    fontSize: 16,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
   },
 });

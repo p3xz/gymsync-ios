@@ -33,6 +33,7 @@ import { toast } from '../../lib/toast';
 import { impactLight, notifySuccess } from '../../lib/haptics';
 import { keepAwakeOff, keepAwakeOn } from '../../lib/keepAwake';
 import RestTimer from '../../components/RestTimer';
+import { bestWeightByExercise } from '../../lib/records';
 import {
   endWorkoutIsland,
   startWorkoutIsland,
@@ -44,6 +45,7 @@ import {
   persistFinishedWorkout,
   toDateKey,
   type ExerciseDef,
+  type HistoryEntry,
   type ResolvedWorkout,
 } from '../../lib/workout';
 
@@ -201,6 +203,8 @@ export default function Workout() {
   const [restVisible, setRestVisible] = useState(false);
   const [restSecs, setRestSecs] = useState(60);
   const [restAuto, setRestAuto] = useState(true);
+  // Best completed weight per exercise, for mid-workout PR detection.
+  const recordsRef = useRef<Map<string, number>>(new Map());
   const startTimeRef = useRef<number>(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // Non-reactive mirror used by event handlers to persist without stale closures.
@@ -295,14 +299,16 @@ export default function Workout() {
       (async () => {
         const todayKey = toDateKey(new Date());
         if (todayKey === sessionDateKey) return; // resume, do not reset
-        const [resolved, storedRestSecs, storedRestAuto] = await Promise.all([
+        const [resolved, storedRestSecs, storedRestAuto, history] = await Promise.all([
           getTodaysWorkout(),
           Storage.get<number>('restTimerSecs', 60),
           Storage.get<boolean>('restTimerAuto', true),
+          Storage.get<HistoryEntry[]>('workoutHistory', []),
         ]);
         if (cancelled) return;
         setRestSecs(storedRestSecs);
         setRestAuto(storedRestAuto);
+        recordsRef.current = bestWeightByExercise(history);
         setWorkout(resolved);
         if (resolved.isRest) {
           // Rest days never hold a session; drop anything stale.
@@ -343,8 +349,21 @@ export default function Workout() {
     setExercises(next);
     writeSession(next);
     void impactLight();
-    // Checking off a set starts the rest timer when auto-rest is on.
-    if (!wasCompleted && restAuto) setRestVisible(true);
+    if (!wasCompleted) {
+      // New personal record? Only counts when there is a previous best to beat.
+      const w = parseFloat(exercises[index].weight);
+      if (!Number.isNaN(w) && w > 0) {
+        const name = exercises[index].def.name;
+        const prevBest = recordsRef.current.get(name) ?? 0;
+        if (prevBest > 0 && w > prevBest) {
+          recordsRef.current.set(name, w);
+          void notifySuccess();
+          toast(`New PR! ${name}: ${w} kg`);
+        }
+      }
+      // Checking off a set starts the rest timer when auto-rest is on.
+      if (restAuto) setRestVisible(true);
+    }
     void updateWorkoutIsland(
       next.filter((ex) => ex.completed).length,
       next.length,
