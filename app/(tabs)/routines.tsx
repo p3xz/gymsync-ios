@@ -384,6 +384,14 @@ export default function Routines() {
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionLabel}>My Routines</Text>
           <View style={styles.sectionActions}>
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={() => router.push('/programs')}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="library" size={16} color="#ffffff" />
+              <Text style={styles.addButtonText}>Programs</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.aiButton} onPress={openAiNew} activeOpacity={0.8}>
               <Ionicons name="sparkles" size={16} color="#ffffff" />
               <Text style={styles.addButtonText}>AI</Text>

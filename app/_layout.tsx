@@ -72,6 +72,7 @@ export default function RootLayout() {
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="plate-calculator" />
             <Stack.Screen name="upgrade" />
+            <Stack.Screen name="programs" />
           </>
         )}
       </Stack>
