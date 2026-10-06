@@ -23,6 +23,8 @@ Built in September 2026.
 
 ## Tech Stack
 
+![TypeScript](https://skillicons.dev/icons?i=ts) ![React](https://skillicons.dev/icons?i=react) ![Expo](https://skillicons.dev/icons?i=expo)
+
 - **Languages:** TypeScript (strict), JSX/TSX
 - **Frameworks:** React Native 0.86, React 19, Expo SDK 57 (managed workflow)
 - **Navigation:** expo-router (file-based routing under `app/`)
