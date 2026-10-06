@@ -1,5 +1,7 @@
 # GymSync iOS
 
+![Preview](preview.png)
+
 > A native iOS port of the GymSync web fitness tracker: a full gym workout companion with live sessions, rest timers, personal records, weekly volume tracking, and a Live Activity in the Dynamic Island and on the Lock Screen, all on-device with no backend and no account.
 
 ![Status](https://img.shields.io/badge/status-active-brightgreen) ![License](https://img.shields.io/badge/license-MIT-blue)
