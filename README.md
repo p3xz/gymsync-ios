@@ -1,8 +1,25 @@
 # GymSync iOS
 
-A native iOS port of [GymSync](https://github.com/p3xz/gymsyncs), the vanilla
-HTML/CSS/JS fitness tracker. Built with Expo (managed workflow), React Native,
-TypeScript, and expo-router. Dark theme, on-device storage, no backend.
+## What
+
+GymSync iOS is a native iOS port of [GymSync](https://github.com/p3xz/gymsyncs),
+the vanilla HTML/CSS/JS fitness tracker. It is a full gym workout companion:
+plan your weekly split, run live workout sessions with a timer and rest
+countdowns, log weights and notes per exercise, track personal records and
+weekly training volume, and keep all of it on your device with no backend and
+no account. Dark theme throughout, with a Live Activity that shows your
+workout timer and exercise progress in the Dynamic Island and on the Lock
+Screen while you train.
+
+## Why
+
+Built as a personal project, so a gym tracker that started as a web app could
+live natively on an iPhone: one tap to open, the screen staying awake mid-set,
+and the workout timer visible without unlocking the phone.
+
+## When
+
+Built in September 2026.
 
 ## Tech Stack
 
@@ -14,6 +31,25 @@ TypeScript, and expo-router. Dark theme, on-device storage, no backend.
 - **Native modules:** expo-notifications (weekly goal nudges, overspend alerts), expo-haptics (toast feedback), expo-document-picker and expo-file-system (JSON backup export), expo-keep-awake (workout screen)
 - **AI:** Google Gemini API for the AI Coach routine generator
 - **Builds:** EAS Build on GitHub Actions for the Android APK (preview profile, `buildType: "apk"`), plain `xcodebuild` on a macOS runner for the unsigned iOS IPA (code signing disabled)
+
+## Why this stack
+
+- **Expo (managed workflow):** build, test, and ship an iOS app from any machine with no local Xcode; the unsigned IPA is produced on a macOS GitHub runner instead.
+- **React Native + TypeScript (strict):** near-native iOS UI from a single codebase, with type safety across screens and the storage layer.
+- **expo-router:** file-based routing, every screen is a file under `app/`.
+- **AsyncStorage:** the whole app's data lives on-device under the `gymsync:` key prefix, no backend and no accounts, mirroring the web app's localStorage keys.
+- **Expo modules:** notifications for weekly-goal nudges, haptics for toast feedback, document-picker and file-system for JSON backup export, keep-awake for the workout screen.
+- **Gemini API:** plain-language routine generation and editing on the free tier, with the key stored only on the device.
+- **GitHub Actions (EAS for Android, xcodebuild for iOS):** every push to main produces a signed APK and an unsigned IPA artifact, with no secrets needed for the iOS job.
+
+## How it works
+
+- **Navigation:** the root layout in `app/_layout.tsx` gates first-launch onboarding, then hands off to bottom tabs (Home, Workout, Routines, History, Profile) through expo-router.
+- **Weekly schedule:** in Routines you create custom routines and assign each weekday either a built-in split (Push / Pull / Legs / Rest) or one of your routines. Home and the workout screen read that schedule automatically.
+- **Live session:** checking off exercises marks progress; per-exercise weight (kg) and notes are logged inline; the rest timer runs between sets and superset groups; the screen stays awake; finishing opens a summary sheet (duration, exercises, estimated calories at 6.5/min).
+- **Persistence:** `lib/storage.ts` wraps AsyncStorage with the `gymsync:` prefix; records, streaks, charts, and weekly-goal math are derived in `lib/` from that stored history. JSON export/import in Profile guards against sideload reinstall wipes.
+- **Live Activity:** starting a workout raises a Live Activity showing the timer and exercise progress in the Dynamic Island and on the Lock Screen, updating as you check exercises off and ending when you finish (iOS 16.2 or later; the Dynamic Island needs iPhone 14 Pro or later).
+- **Weekly goal:** a target sessions-per-week goal is tracked from history; fall behind by Sunday and a local notification nudges you.
 
 ## Features
 
