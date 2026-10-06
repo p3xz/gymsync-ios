@@ -1,8 +1,19 @@
-# GymSync for Android
+# GymSync iOS
 
-A native Android port of [GymSync](https://github.com/p3xz/gymsyncs), the vanilla
+A native iOS port of [GymSync](https://github.com/p3xz/gymsyncs), the vanilla
 HTML/CSS/JS fitness tracker. Built with Expo (managed workflow), React Native,
 TypeScript, and expo-router. Dark theme, on-device storage, no backend.
+
+## Tech Stack
+
+- **Languages:** TypeScript (strict), JSX/TSX
+- **Frameworks:** React Native 0.86, React 19, Expo SDK 57 (managed workflow)
+- **Navigation:** expo-router (file-based routing under `app/`)
+- **Storage:** AsyncStorage, all data on-device under the `gymsync:` key prefix
+- **UI/UX:** react-native-reanimated for entrance animations, react-native-safe-area-context for notched iPhones and the Dynamic Island, @expo/vector-icons for icons
+- **Native modules:** expo-notifications (weekly goal nudges, overspend alerts), expo-haptics (toast feedback), expo-document-picker and expo-file-system (JSON backup export), expo-keep-awake (workout screen)
+- **AI:** Google Gemini API for the AI Coach routine generator
+- **Builds:** EAS Build on GitHub Actions for the Android APK (preview profile, `buildType: "apk"`), plain `xcodebuild` on a macOS runner for the unsigned iOS IPA (code signing disabled)
 
 ## Features
 
@@ -192,3 +203,9 @@ eas.json             EAS build profiles (development / preview / production)
 - Android package: `com.p3xz.gymsync`. iOS bundle identifier: `com.p3xz.gymsync`.
   Change them in `app.json` if you want your own before the first production
   build.
+
+## Credits
+
+Built by Namish Yadav ([p3xz](https://github.com/p3xz)) as the iOS companion
+to the web app GymSync. The Gemini AI Coach feature uses Google's Gemini API
+(free API key from Google AI Studio, stored only on-device).
